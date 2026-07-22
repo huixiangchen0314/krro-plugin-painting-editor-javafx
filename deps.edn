@@ -15,7 +15,6 @@
         org.lwjgl/lwjgl$natives-windows        {:mvn/version "3.3.3"}
         org.lwjgl/lwjgl-opengl$natives-windows {:mvn/version "3.3.3"}
         org.lwjgl/lwjgl-glfw$natives-windows   {:mvn/version "3.3.3"}
-
         }
 
  :aliases
