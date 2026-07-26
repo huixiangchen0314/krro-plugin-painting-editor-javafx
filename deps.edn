@@ -1,6 +1,7 @@
 {:paths ["src" "resources"]
  :deps {org.clojure/clojure {:mvn/version "1.11.1"}
 
+        top.kzre/krro-util-tile {:mvn/version "1.0-SNAPSHOT"}
         top.kzre/krro-plugin-painting-editor-core {:mvn/version "0.1.0"}
         top.kzre/krro-ui-javafx {:mvn/version "0.1.0"}
         top.kzre/pen4j-all {:mvn/version "1.0-SNAPSHOT"}

@@ -28,7 +28,7 @@
 
 ;; ── 工具动作处理 ──────────────────────────────
 (defn- dispatch-tool-action
-  [canvas-id f action current-tool current-layer runtime ctx drawing?]
+  [canvas-id f action current-tool current-layer current-state ctx drawing?]
   (case action
     :start
     (reset! drawing? true)
@@ -38,16 +38,16 @@
 
     :no-replace
     (do
-      (let [{:keys [layer state]} (tp/commit! current-tool current-layer runtime ctx)]
+      (let [{:keys [_layer state]} (tp/commit! current-tool current-layer current-state ctx)]
         (when state (swap! state/canvas-runtimes assoc canvas-id state)))
       (layer/refresh-canvas-and-layer! canvas-id)
       (reset! drawing? false))
 
     :commit
     (do
-      (let [{:keys [layer state]} (tp/commit! current-tool current-layer runtime ctx)]
-        (when state (swap! state/canvas-runtimes assoc canvas-id state))
-        (when layer (layer-undo/replace-layer-undo! canvas-id layer)))
+      (let [{:keys [layer state]} (tp/commit! current-tool current-layer current-state ctx)]
+        (when layer (layer-undo/commit-layer-undo! canvas-id layer current-state state)))
+
       (reset! drawing? false))
 
     :update
@@ -68,13 +68,13 @@
               ctx  (tp/make-context canvas-id f data)
               action (tp/apply! viewport-tool-instance nil runtime ev ctx)]
           (when (= action :continue)
-            (let [preview (state/preview-buffer runtime)
+            (let [preview (state/preview-canvas runtime)
                   vp      (vp/get-viewport f)
                   [w h]   (pc/canvas-size canvas-id)]
               (upload-fn preview w h vp)))))
       ;; 其他事件 → 当前绘画工具
       (when-let [current-tool (state/current-tool canvas-id)]
-        (when-let [current-layer (state/selected-layer! canvas-id)]
+        (when-let [current-layer (state/current-layer! canvas-id)]
           (let [runtime   (state/canvas-runtime canvas-id)
                 data      (pc/canvas-data! canvas-id)
                 ctx       (tp/make-context canvas-id f data)
@@ -111,15 +111,15 @@
                     ;; 预览更新
                     (when @drawing?
                       (when-let [current-tool (state/current-tool canvas-id)]
-                        (when-let [current-layer (state/selected-layer! canvas-id)]
+                        (when-let [current-layer (state/current-layer! canvas-id)]
                           (let [runtime (state/canvas-runtime canvas-id)
                                 data    (pc/canvas-data! canvas-id)
                                 ctx     (tp/make-context canvas-id f data)
                                 {:keys [layer state]} (tp/preview! current-tool current-layer runtime ctx)]
-                            (when state
-                              (swap! state/canvas-runtimes assoc canvas-id state))
                             (when layer
-                              (layer/replace-layer! canvas-id layer))))))
+                              (layer/replace-layer! canvas-id layer))
+                            (when state
+                              (swap! state/canvas-runtimes assoc canvas-id state))))))
                     (catch Exception e
                       (log/error e "Render loop error")))))
 
@@ -154,15 +154,15 @@
       (.setFocusTraversable false))
 
     ;; 设置画布尺寸
-    (.setWidth main-canvas (double w))
-    (.setHeight main-canvas (double h))
-    (.setWidth overlay-canvas (double w))
-    (.setHeight overlay-canvas (double h))
+    (.setWidth main-canvas 800)
+    (.setHeight main-canvas 600)
+    (.setWidth overlay-canvas 800)
+    (.setHeight overlay-canvas 600)
 
     (layer/auto-select-layer! canvas-id)
 
     (let [runtime (state/canvas-runtime canvas-id)
-          preview (state/preview-buffer runtime)]
+          preview (state/preview-canvas runtime)]
       (upload-fn preview w h (vp/get-viewport f)))
 
     (frame/set-param! f spec/update-fn-key upload-fn)
@@ -194,7 +194,7 @@
                         (start-canvas-session stack main-canvas overlay-canvas canvas-id f)
                         (when-let [runtime (state/canvas-runtime canvas-id)]
                           (let [[w h] (pc/canvas-size canvas-id)
-                                preview (state/preview-buffer runtime)
+                                preview (state/preview-canvas runtime)
                                 viewport (vp/get-viewport f)
                                 upload-fn (frame/param f spec/update-fn-key)]
                             (when upload-fn
