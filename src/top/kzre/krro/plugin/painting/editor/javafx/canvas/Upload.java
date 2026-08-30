@@ -2,12 +2,12 @@ package top.kzre.krro.plugin.painting.editor.javafx.canvas;
 
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.PixelWriter;
+import top.kzre.krro.util.pool.ObjectPool;
 import top.kzre.krro.util.tile.Tile;
 import top.kzre.krro.util.tile.TiledCanvas;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.RecursiveAction;
 
@@ -22,14 +22,15 @@ public final class Upload {
      */
     public static void uploadPreTransformed(TiledCanvas canvas, int imgW, int imgH,
                                             double offsetX, double offsetY, double zoom,
-                                            PixelWriter writer, int canvasW, int canvasH) {
-        long t0 = System.nanoTime();
+                                            PixelWriter writer, int canvasW, int canvasH, int[] pixels) {
+//        long t0 = System.nanoTime();
 
         int channels = canvas.getChannels();
         assert channels == 4;
         int tileSize = canvas.getTileSize();
-        int[] pixels = new int[canvasW * canvasH];
-        long t1 = System.nanoTime();
+        assert pixels.length == canvasW * canvasH;
+//        int[] pixels = new int[canvasW * canvasH];
+//        long t1 = System.nanoTime();
 
         // 预计算图像在屏幕空间的边界
         int intImgMinX = (int) Math.ceil(-offsetX * zoom);
@@ -43,34 +44,37 @@ public final class Upload {
         int tileMinY = 0;
         int tileMaxY = TiledCanvas.tileY(canvasH - 1, tileSize);
 
-        List<RecursiveAction> tasks = new ArrayList<>();
+        List<TileTask> tasks = new ArrayList<>();
         for (int tx = tileMinX; tx <= tileMaxX; tx++) {
             for (int ty = tileMinY; ty <= tileMaxY; ty++) {
-                tasks.add(new TileTask(tx, ty, canvas, tileSize, pixels, canvasW, canvasH,
-                        intImgMinX, intImgMaxX, intImgMinY, intImgMaxY));
+                TileTask task = new TileTask();
+                task.set(tx, ty, canvas, tileSize, pixels, canvasW, canvasH,
+                        intImgMinX, intImgMaxX, intImgMinY, intImgMaxY);
+                tasks.add(task);
             }
         }
         ForkJoinTask.invokeAll(tasks);
-
-        long t2 = System.nanoTime();
+        tasks.forEach(TileTask::dispose);
+//        long t2 = System.nanoTime();
         writer.setPixels(0, 0, canvasW, canvasH,
                 PixelFormat.getIntArgbPreInstance(),
                 pixels, 0, canvasW);
-        long t3 = System.nanoTime();
+//        long t3 = System.nanoTime();
 
-        System.out.printf("uploadPreTransformed: alloc=%.3fms, sample=%.3fms, setPixels=%.3fms, total=%.3fms%n",
-                (t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6, (t3-t0)/1e6);
+//        System.out.printf("uploadPreTransformed: alloc=%.3fms, sample=%.3fms, setPixels=%.3fms, total=%.3fms%n",
+//                (t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6, (t3-t0)/1e6);
     }
 
     private static class TileTask extends RecursiveAction {
-        private final int tx, ty;
-        private final TiledCanvas canvas;
-        private final int tileSize;
-        private final int[] pixels;
-        private final int canvasW, canvasH;
-        private final int intImgMinX, intImgMaxX, intImgMinY, intImgMaxY;
+        private int tx, ty;
+        private TiledCanvas canvas;
+        private int tileSize;
+        private int[] pixels;
+        private int canvasW, canvasH;
+        private int intImgMinX, intImgMaxX, intImgMinY, intImgMaxY;
 
-        TileTask(int tx, int ty, TiledCanvas canvas, int tileSize, int[] pixels,
+
+        public void set(int tx, int ty, TiledCanvas canvas, int tileSize, int[] pixels,
                  int canvasW, int canvasH,
                  int intImgMinX, int intImgMaxX, int intImgMinY, int intImgMaxY) {
             this.tx = tx; this.ty = ty;
@@ -78,6 +82,12 @@ public final class Upload {
             this.pixels = pixels; this.canvasW = canvasW; this.canvasH = canvasH;
             this.intImgMinX = intImgMinX; this.intImgMaxX = intImgMaxX;
             this.intImgMinY = intImgMinY; this.intImgMaxY = intImgMaxY;
+        }
+
+        // 及时释放
+        public void dispose(){
+            this.pixels = null;
+            this.canvas = null;
         }
 
         @Override

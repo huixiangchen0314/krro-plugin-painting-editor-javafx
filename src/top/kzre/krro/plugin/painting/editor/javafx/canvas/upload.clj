@@ -18,7 +18,8 @@
         last-upload-time (atom 0)
         latest-params (atom nil)   ;; 保存完整参数 [snapshot w h viewport]
         min-interval (int (/ 1000 120))                     ;; 最高 120px
-        delayed-task (atom nil)]
+        delayed-task (atom nil)
+        int-pixels (atom nil)]
 
     (letfn [(upload-task []
               (let [[params _] (swap-vals! pending-params (fn [_] nil))
@@ -50,8 +51,16 @@
                                         (if (and canvas-w canvas-h (pos? (int canvas-w)) (pos? (int canvas-h)))
                                           (let [offset-x (int (or (:offset-x viewport) 0))
                                                 offset-y (int (or (:offset-y viewport) 0))
-                                                zoom     (double (or (:zoom viewport) 1.0))]
-                                            (Upload/uploadPreTransformed snapshot img-w img-h offset-x offset-y zoom pixel-writer (int canvas-w) (int canvas-h))
+                                                zoom     (double (or (:zoom viewport) 1.0))
+                                                w (int canvas-w)
+                                                h (int canvas-h)
+                                                len (* w h)]
+                                            (if-let [pixels @int-pixels]
+                                              (when-not (= (alength pixels) len)
+                                                (reset! int-pixels (int-array len)))
+                                              (reset! int-pixels (int-array len)))
+                                            (Upload/uploadPreTransformed snapshot img-w img-h offset-x offset-y zoom pixel-writer w h @int-pixels)
+
                                             (log/debug "Uploaded canvas to JavaFX"))
                                           (log/warn "Canvas size is zero or null, skipping upload")))
                                       (catch Exception e
