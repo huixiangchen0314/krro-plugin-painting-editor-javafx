@@ -1,83 +1,149 @@
 package top.kzre.krro.plugin.painting.editor.javafx.canvas;
 
+import javafx.scene.image.PixelFormat;
 import javafx.scene.image.PixelWriter;
 import top.kzre.krro.util.tile.Tile;
 import top.kzre.krro.util.tile.TiledCanvas;
 
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.RecursiveAction;
 
-public class Upload {
+public final class Upload {
+    private static final int CHECKER_COLOR1 = 0xFFCCCCCC;
+    private static final int CHECKER_COLOR2 = 0xFF888888;
+    // 64x64 像素一个棋盘格
+    private static final int CHECKER_GRID = 64;
     private static final int GRAY_ARGB = 0xFF888888;
+    /**
+     * 上传画布，画布已经经过预先视口变换，采样直接像素
+     */
+    public static void uploadPreTransformed(TiledCanvas canvas, int imgW, int imgH,
+                                            double offsetX, double offsetY, double zoom,
+                                            PixelWriter writer, int canvasW, int canvasH) {
+        long t0 = System.nanoTime();
 
-    public static void upload(TiledCanvas canvas, int imgW, int imgH,
-                              double offsetX, double offsetY, double zoom,
-                              PixelWriter writer, int canvasW, int canvasH) {
-        int tileSize = canvas.getTileSize();
         int channels = canvas.getChannels();
+        assert channels == 4;
+        int tileSize = canvas.getTileSize();
+        int[] pixels = new int[canvasW * canvasH];
+        long t1 = System.nanoTime();
 
-        for (int sy = 0; sy < canvasH; sy++) {
-            for (int sx = 0; sx < canvasW; sx++) {
-                double lx = sx / zoom + offsetX;
-                double ly = sy / zoom + offsetY;
+        // 预计算图像在屏幕空间的边界
+        int intImgMinX = (int) Math.ceil(-offsetX * zoom);
+        int intImgMaxX = (int) Math.floor((imgW - offsetX) * zoom);
+        int intImgMinY = (int) Math.ceil(-offsetY * zoom);
+        int intImgMaxY = (int) Math.floor((imgH - offsetY) * zoom);
 
-                int argb;
-                if (lx >= 0 && lx < imgW && ly >= 0 && ly < imgH) {
-                    argb = sampleCanvas(canvas, tileSize, channels, lx, ly, imgW, imgH);
-                } else {
-                    argb = GRAY_ARGB;
+        // 屏幕瓦片范围
+        int tileMinX = 0;
+        int tileMaxX = TiledCanvas.tileX(canvasW - 1, tileSize);
+        int tileMinY = 0;
+        int tileMaxY = TiledCanvas.tileY(canvasH - 1, tileSize);
+
+        List<RecursiveAction> tasks = new ArrayList<>();
+        for (int tx = tileMinX; tx <= tileMaxX; tx++) {
+            for (int ty = tileMinY; ty <= tileMaxY; ty++) {
+                tasks.add(new TileTask(tx, ty, canvas, tileSize, pixels, canvasW, canvasH,
+                        intImgMinX, intImgMaxX, intImgMinY, intImgMaxY));
+            }
+        }
+        ForkJoinTask.invokeAll(tasks);
+
+        long t2 = System.nanoTime();
+        writer.setPixels(0, 0, canvasW, canvasH,
+                PixelFormat.getIntArgbPreInstance(),
+                pixels, 0, canvasW);
+        long t3 = System.nanoTime();
+
+        System.out.printf("uploadPreTransformed: alloc=%.3fms, sample=%.3fms, setPixels=%.3fms, total=%.3fms%n",
+                (t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6, (t3-t0)/1e6);
+    }
+
+    private static class TileTask extends RecursiveAction {
+        private final int tx, ty;
+        private final TiledCanvas canvas;
+        private final int tileSize;
+        private final int[] pixels;
+        private final int canvasW, canvasH;
+        private final int intImgMinX, intImgMaxX, intImgMinY, intImgMaxY;
+
+        TileTask(int tx, int ty, TiledCanvas canvas, int tileSize, int[] pixels,
+                 int canvasW, int canvasH,
+                 int intImgMinX, int intImgMaxX, int intImgMinY, int intImgMaxY) {
+            this.tx = tx; this.ty = ty;
+            this.canvas = canvas; this.tileSize = tileSize;
+            this.pixels = pixels; this.canvasW = canvasW; this.canvasH = canvasH;
+            this.intImgMinX = intImgMinX; this.intImgMaxX = intImgMaxX;
+            this.intImgMinY = intImgMinY; this.intImgMaxY = intImgMaxY;
+        }
+
+        @Override
+        protected void compute() {
+            int screenStartX = Math.max(tx * tileSize, 0);
+            int screenEndX = Math.min((tx + 1) * tileSize, canvasW);
+            int screenStartY = Math.max(ty * tileSize, 0);
+            int screenEndY = Math.min((ty + 1) * tileSize, canvasH);
+            if (screenStartX >= screenEndX || screenStartY >= screenEndY) return;
+
+            // 剪枝：如果整个瓦片都在图像范围外，填充灰色并返回
+            if (screenEndX <= intImgMinX || screenStartX >= intImgMaxX ||
+                    screenEndY <= intImgMinY || screenStartY >= intImgMaxY) {
+                for (int sy = screenStartY; sy < screenEndY; sy++) {
+                    int rowBase = sy * canvasW;
+                    for (int sx = screenStartX; sx < screenEndX; sx++) {
+                        pixels[rowBase + sx] = GRAY_ARGB;
+                    }
                 }
-                writer.setArgb(sx, sy, argb);
+                return;
+            }
+
+            // 获取瓦片像素（可能在边界内）
+            Tile tile = canvas.getTile(tx, ty);
+            float[] tilePixels = (tile != null) ? tile.getPixelsSnapshot() : null;
+
+            for (int sy = screenStartY; sy < screenEndY; sy++) {
+                int rowBase = sy * canvasW;
+                for (int sx = screenStartX; sx < screenEndX; sx++) {
+                    // 像素级检查
+                    if (sx >= intImgMinX && sx < intImgMaxX &&
+                            sy >= intImgMinY && sy < intImgMaxY) {
+                        // 在图像范围内
+                        if (tilePixels != null) {
+                            int localX = sx - tx * tileSize;
+                            int localY = sy - ty * tileSize;
+                            int offset = (localY * tileSize + localX) * 4;
+                            float a = tilePixels[offset + 3];
+                            if (a < 1e-6f) {
+                                int gridX = sx / CHECKER_GRID;
+                                int gridY = sy / CHECKER_GRID;
+                                pixels[rowBase + sx] = ((gridX + gridY) & 1) == 0 ? CHECKER_COLOR1 : CHECKER_COLOR2;
+                            } else {
+                                float r = tilePixels[offset];
+                                float g = tilePixels[offset + 1];
+                                float b = tilePixels[offset + 2];
+                                int ia = Math.round(a * 255);
+                                int ir = Math.round(r * a * 255);
+                                int ig = Math.round(g * a * 255);
+                                int ib = Math.round(b * a * 255);
+                                pixels[rowBase + sx] = (ia << 24) | (ir << 16) | (ig << 8) | ib;
+                            }
+                        } else {
+                            // 瓦片不存在，视为透明
+                            int gridX = sx / CHECKER_GRID;
+                            int gridY = sy / CHECKER_GRID;
+                            pixels[rowBase + sx] = ((gridX + gridY) & 1) == 0 ? CHECKER_COLOR1 : CHECKER_COLOR2;
+                        }
+                    } else {
+                        // 图像范围外（边界部分），填充灰色
+                        pixels[rowBase + sx] = GRAY_ARGB;
+                    }
+                }
             }
         }
     }
 
-    private static int sampleCanvas(TiledCanvas canvas, int tileSize, int channels,
-                                    double lx, double ly, int w, int h) {
-        int x0 = (int) Math.floor(lx);
-        int y0 = (int) Math.floor(ly);
-        double fx = lx - x0;
-        double fy = ly - y0;
 
-        float[] c00 = new float[channels], c10 = new float[channels],
-                c01 = new float[channels], c11 = new float[channels];
-        readPixel(canvas, tileSize, x0, y0, c00);
-        readPixel(canvas, tileSize, x0 + 1, y0, c10);
-        readPixel(canvas, tileSize, x0, y0 + 1, c01);
-        readPixel(canvas, tileSize, x0 + 1, y0 + 1, c11);
-
-        // 双线性插值
-        float r = (float) (c00[0] * (1 - fx) * (1 - fy) + c10[0] * fx * (1 - fy) +
-                c01[0] * (1 - fx) * fy + c11[0] * fx * fy);
-        float g = (float) (c00[1] * (1 - fx) * (1 - fy) + c10[1] * fx * (1 - fy) +
-                c01[1] * (1 - fx) * fy + c11[1] * fx * fy);
-        float b = (float) (c00[2] * (1 - fx) * (1 - fy) + c10[2] * fx * (1 - fy) +
-                c01[2] * (1 - fx) * fy + c11[2] * fx * fy);
-        float a = (float) (c00[3] * (1 - fx) * (1 - fy) + c10[3] * fx * (1 - fy) +
-                c01[3] * (1 - fx) * fy + c11[3] * fx * fy);
-
-        // 转换为 ARGB
-        int ia = Math.min(255, Math.max(0, (int) (a * 255 + 0.5)));
-        int ir = Math.min(255, Math.max(0, (int) (r * 255 + 0.5)));
-        int ig = Math.min(255, Math.max(0, (int) (g * 255 + 0.5)));
-        int ib = Math.min(255, Math.max(0, (int) (b * 255 + 0.5)));
-        return (ia << 24) | (ir << 16) | (ig << 8) | ib;
-    }
-
-    private static void readPixel(TiledCanvas canvas, int tileSize,
-                                  int x, int y, float[] out) {
-        if (x < 0 || y < 0) {
-            Arrays.fill(out, 0f);
-            return;
-        }
-        int tx = TiledCanvas.tileX(x, tileSize);
-        int ty = TiledCanvas.tileY(y, tileSize);
-        Tile tile = canvas.getTile(tx, ty);
-        if (tile == null) {
-            Arrays.fill(out, 0f);
-            return;
-        }
-        int lx = TiledCanvas.localX(x, tileSize);
-        int ly = TiledCanvas.localY(y, tileSize);
-        tile.getPixel(lx, ly, out, tileSize, out.length);
-    }
 }

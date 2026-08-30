@@ -5,14 +5,12 @@
     [top.kzre.krro.plugin.painting.core.event :as event]
     [top.kzre.krro.plugin.painting.core.input :as input])
   (:import
-    (javafx.geometry Point2D)
     (top.kzre.pen4j.api PenEvent PenListener PenState)
     (top.kzre.pen4j.core PenContext)
-    (top.kzre.pen4j.windows.rawinput RawInputDriver)
     (top.kzre.pen4j.windows.wintab WinTabDriver)))
 
 
-(defrecord PenBuffered [hwnd node buffer pressed? pen-context]
+(defrecord PenBuffered [hwnd node on-event pressed? pen-context]
   input/IInputSource
   (start! [_]
     (try
@@ -45,7 +43,7 @@
                                              :else :hover)]
                             (when (= event-type :press) (reset! pressed? true))
                             (when (= event-type :release) (reset! pressed? false))
-                            (swap! buffer conj
+                            (on-event
                                    (event/make-pen-event
                                      event-type cx cy pressure tilt-x tilt-y twist near?
                                      :timestamp (.getTimestampMicros e)
@@ -66,10 +64,12 @@
     nil))
 
 (defn make-pen-input
-  "创建缓冲式数位笔输入源。事件将追加到 buffer 原子中，由外部轮询消费。
+  "创建缓冲式数位笔输入源。事件将追加到 on-event 原子中，由外部轮询消费。
    hwnd   : 窗口句柄
    node : 监听事件的 区域节点
-   buffer : 原子，用于存放累积的笔事件向量"
-  [node buffer]
-  (map->PenBuffered {:node node :buffer buffer
-                     :pressed? (atom false) :pen-context (atom nil)}))
+   on-event : 原子，用于存放累积的笔事件向量"
+  [node on-event]
+  (map->PenBuffered {:node node
+                     :on-event on-event
+                     :pressed? (atom false)
+                     :pen-context (atom nil)}))

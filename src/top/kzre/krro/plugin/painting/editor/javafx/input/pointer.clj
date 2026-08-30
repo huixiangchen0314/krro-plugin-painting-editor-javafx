@@ -14,7 +14,10 @@
     (= btn MouseButton/MIDDLE)   :middle
     :else nil))
 
-(defrecord PointerBuffered [pressed? ^Canvas canvas buffer current-button]
+(defrecord PointerBuffered [pressed?
+                            ^Canvas canvas
+                            on-event
+                            current-button]
   input/IInputSource
   (start! [_]
     (let [on-press (reify EventHandler
@@ -22,24 +25,24 @@
                        (reset! pressed? true)
                        (let [btn (javafx-button->keyword (.getButton e))]
                          (reset! current-button btn)
-                         (swap! buffer conj
+                         (on-event
                                 (event/make-pointer-event :press (.getX e) (.getY e)
                                                           :mouse-button btn)))))
           on-drag  (reify EventHandler
                      (handle [_ e]
                        (when @pressed?
-                         (swap! buffer conj
+                         (on-event
                                 (event/make-pointer-event :drag (.getX e) (.getY e)
                                                           :mouse-button @current-button)))))
           on-move (reify EventHandler
                     (handle [_ e]
-                      (swap! buffer conj
+                      (on-event
                              (event/make-pointer-event :move (.getX e) (.getY e)))))
           on-release (reify EventHandler
                        (handle [_ e]
                          (when @pressed?
                            (let [btn (javafx-button->keyword (.getButton e))]
-                             (swap! buffer conj
+                             (on-event
                                     (event/make-pointer-event :release (.getX e) (.getY e)
                                                               :mouse-button btn))
                              (reset! pressed? false)
@@ -47,7 +50,7 @@
           on-scroll (reify EventHandler
                       (handle [_ e]
                         (when-not (.isDirect e)
-                          (swap! buffer conj
+                          (on-event
                                  (event/make-pointer-event :scroll (.getX e) (.getY e)
                                                            :delta-x (.getDeltaX e) :delta-y (.getDeltaY e)
                                                            :mouse-button :middle)))))]
@@ -68,7 +71,8 @@
     (reset! current-button nil)))
 
 (defn make-pointer-input
-  "创建缓冲式鼠标输入源。事件将追加到 buffer 原子中。"
-  [^Canvas canvas buffer]
-  (map->PointerBuffered {:canvas canvas :buffer buffer
-                         :pressed? (atom false) :current-button (atom nil)}))
+  "创建缓冲式鼠标输入源。事件将追加到 on-event 原子中。"
+  [^Canvas canvas on-event]
+  (map->PointerBuffered {:canvas canvas :on-event on-event
+                         :pressed? (atom false)
+                         :current-button (atom nil)}))

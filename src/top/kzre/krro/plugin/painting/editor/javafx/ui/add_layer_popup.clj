@@ -1,6 +1,7 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.ui.add-layer-popup
   (:require
-    [top.kzre.krro.plugin.painting.core.ops.layer-undo :as layer-undo]
+    [top.kzre.krro.core.reframe :as rf]
+    [top.kzre.krro.plugin.painting.core.store :as store]
     [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
     (javafx.event EventHandler)
@@ -15,12 +16,12 @@
     (.add children (doto (Button. "光栅图层")
                      (.setOnAction (reify EventHandler
                                      (handle [_ e]
-                                       (layer-undo/add-raster-layer-over-selected-undo! canvas-id)
+                                       (rf/dispatch store/app-id [:new-raster-layer canvas-id])
                                        (.hide popup))))))
     (.add children (doto (Button. "矢量图层")
                      (.setOnAction (reify EventHandler
                                      (handle [_ e]
-                                       (layer-undo/add-vector-layer-over-selected-undo! canvas-id)
+                                       (rf/dispatch  store/app-id [:new-vector-layer canvas-id])
                                        (.hide popup))))))
     content))
 
