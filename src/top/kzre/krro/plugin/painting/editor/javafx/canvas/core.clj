@@ -15,10 +15,11 @@
    [top.kzre.krro.plugin.painting.core.store :as store]
    [top.kzre.krro.plugin.painting.core.viewport :as vp]
    [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload]
+   [top.kzre.krro.plugin.painting.editor.javafx.graph :as graph]
    [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
    [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
-    (javafx.event EventHandler)
+   (javafx.event EventHandler)
    (javafx.scene.canvas Canvas)
    (javafx.scene.layout StackPane)
    (top.kzre.krro.util.tile TiledCanvas)))
@@ -53,24 +54,23 @@
         overlay-gc (.getGraphicsContext2D overlay-canvas)
         on-event (fn [ev] (rf/dispatch store/app-id [:tool/dispatch-event canvas-id ev frame]))
         render-canvas-fn
-        (fn [canvas-data dirty-tilesa]
+        (fn [canvas-data dirty-tiles dirty-transform]
           (let [viewport (vp/get-viewport frame)
                 canvas (get-preview-canvas frame)]
             (render/request-render-viewport! render-task-id
-                                    canvas canvas-data dirty-tilesa
+                                    canvas canvas-data dirty-tiles dirty-transform
                                     viewport canvas-w canvas-h
                                     upload-fn)))
         mouse-input (pointer/make-pointer-input stack on-event)
 
         on-render-canvas
-        (fn [cid canvas-data dirty-tiles]
+        (fn [cid canvas-data dirty-tiles dirty-transform]
           (when (= cid canvas-id)
-            (render-canvas-fn canvas-data dirty-tiles)))]
+            (render-canvas-fn canvas-data dirty-tiles dirty-transform)))]
 
     (hook/add-hook! :krro.painting/render-canvas-hook on-render-canvas)
     (state/set-current-tool! canvas-id :brush)
-    (frame/set-param! frame :krro.painting.javafx/overlay-gc overlay-gc)
-
+    (frame/set-param! frame :krro.painting/overlay-graph-context (graph/make-javafx-graphics overlay-gc))
     ;; 让 Canvas 对鼠标透明，所有事件由 StackPane 捕获
     (.setMouseTransparent main-canvas true)
     (.setMouseTransparent overlay-canvas true)
@@ -89,7 +89,7 @@
     (.setHeight overlay-canvas canvas-h)
 
     (layer/auto-select-layer! canvas-id)
-    (render-canvas-fn init-canvas-data nil)
+    (render-canvas-fn init-canvas-data nil nil)
 
     ;; 启动输入源
     (input/start! mouse-input)

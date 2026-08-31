@@ -17,6 +17,7 @@ public final class Upload {
     // 64x64 像素一个棋盘格
     private static final int CHECKER_GRID = 64;
     private static final int GRAY_ARGB = 0xFF888888;
+    private static final ObjectPool<TileTask> taskPool = new ObjectPool<>(TileTask::new, 1024, TileTask::reset);
     /**
      * 上传画布，画布已经经过预先视口变换，采样直接像素
      */
@@ -47,14 +48,15 @@ public final class Upload {
         List<TileTask> tasks = new ArrayList<>();
         for (int tx = tileMinX; tx <= tileMaxX; tx++) {
             for (int ty = tileMinY; ty <= tileMaxY; ty++) {
-                TileTask task = new TileTask();
+                TileTask task = taskPool.acquire();
                 task.set(tx, ty, canvas, tileSize, pixels, canvasW, canvasH,
                         intImgMinX, intImgMaxX, intImgMinY, intImgMaxY);
                 tasks.add(task);
             }
         }
         ForkJoinTask.invokeAll(tasks);
-        tasks.forEach(TileTask::dispose);
+        tasks.forEach(taskPool::release);
+        tasks.clear();
 //        long t2 = System.nanoTime();
         writer.setPixels(0, 0, canvasW, canvasH,
                 PixelFormat.getIntArgbPreInstance(),
@@ -85,9 +87,10 @@ public final class Upload {
         }
 
         // 及时释放
-        public void dispose(){
+        public void reset(){
             this.pixels = null;
             this.canvas = null;
+            reinitialize();
         }
 
         @Override
