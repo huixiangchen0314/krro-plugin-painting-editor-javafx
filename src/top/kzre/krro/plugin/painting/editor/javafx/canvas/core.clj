@@ -137,6 +137,9 @@
                       (.bind (.widthProperty overlay) (.widthProperty stack))
                       (.bind (.heightProperty overlay) (.heightProperty stack))
 
+                      (doto stack
+                        (.setMinWidth 0)
+                        (.setMinHeight 0))
                       ;; 将 Canvas 添加到 StackPane
                       (doto (.getChildren stack)
                         (.add main-canvas)
