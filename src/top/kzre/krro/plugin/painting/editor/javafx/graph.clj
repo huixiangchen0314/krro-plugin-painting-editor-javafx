@@ -1,12 +1,21 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.graph
-  (:require [top.kzre.krro.plugin.painting.editor.core.graph :as g])
+  (:require [top.kzre.krro.plugin.painting.editor.core.graph :as g]
+            [top.kzre.krro.core.resources :as ress])
   (:import
+    (javafx.application Platform)
     [javafx.scene.canvas GraphicsContext]
     [javafx.scene.paint Color]
-    [javafx.scene.text Font]))
+    [javafx.scene.text Font]
+    (top.kzre.colorutils.color RGB)))
 
 (defn- color->javafx [color]
   (cond
+    (instance? ress/float-array-class color)
+    (let [r (RGB/red color)
+          g (RGB/green color)
+          b (RGB/blue color)
+          a (RGB/alpha color)]
+      (Color. (double r) (double g) (double b) (double (or a 1.0))))
     (vector? color)
     (let [[r g b a] (concat color (repeat 4 1.0))]  ;; 补齐 alpha
       (Color. (double r) (double g) (double b) (double (or a 1.0))))
@@ -19,10 +28,14 @@
 
 (defrecord JavaFXGraphContext [^GraphicsContext gc]
   g/IGraphicsContext
-
+  (submit! [_ f] (Platform/runLater f))
   ;; ---- 清除与画布信息 ----
   (clear! [_]
-    (.clearRect gc 0 0 (.getWidth (.getCanvas gc)) (.getHeight (.getCanvas gc))))
+    ;; TODO 补丁, GraphicsContext 状态重置失败,做状态检查
+    (try
+      (.clearRect gc 0 0 (.getWidth (.getCanvas gc)) (.getHeight (.getCanvas gc)))
+      (catch NullPointerException
+             e (str "caught exception: " (.getMessage e)))))
 
   (get-width [_]
     (.getWidth (.getCanvas gc)))

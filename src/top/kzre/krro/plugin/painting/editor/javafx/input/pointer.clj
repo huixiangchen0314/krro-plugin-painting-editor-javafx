@@ -4,7 +4,7 @@
             [top.kzre.krro.plugin.painting.core.event :as event])
   (:import (javafx.event EventHandler)
            (javafx.scene.canvas Canvas)
-           (javafx.scene.input MouseButton MouseEvent)))
+           (javafx.scene.input MouseButton MouseEvent ScrollEvent)))
 
 (defn- javafx-button->keyword
   [^MouseButton btn]
@@ -13,6 +13,13 @@
     (= btn MouseButton/SECONDARY) :right
     (= btn MouseButton/MIDDLE)   :middle
     :else nil))
+
+(defn- event->modifiers
+  [e]
+  {:shift (.isShiftDown e)
+   :ctrl (.isControlDown e)
+   :alt (.isAltDown e)})
+
 
 (defrecord PointerBuffered [pressed?
                             ^Canvas canvas
@@ -25,26 +32,31 @@
                        (reset! pressed? true)
                        (let [btn (javafx-button->keyword (.getButton e))]
                          (reset! current-button btn)
+
                          (on-event
                                 (event/make-pointer-event :press (.getX e) (.getY e)
-                                                          :mouse-button btn)))))
+                                                          :mouse-button btn
+                                                          :modifiers (event->modifiers e))))))
           on-drag  (reify EventHandler
                      (handle [_ e]
                        (when @pressed?
                          (on-event
                                 (event/make-pointer-event :drag (.getX e) (.getY e)
-                                                          :mouse-button @current-button)))))
+                                                          :mouse-button @current-button
+                                                          :modifiers (event->modifiers e))))))
           on-move (reify EventHandler
                     (handle [_ e]
                       (on-event
-                             (event/make-pointer-event :move (.getX e) (.getY e)))))
+                             (event/make-pointer-event :move (.getX e) (.getY e)
+                                                       :modifiers (event->modifiers e)))))
           on-release (reify EventHandler
                        (handle [_ e]
                          (when @pressed?
                            (let [btn (javafx-button->keyword (.getButton e))]
                              (on-event
                                     (event/make-pointer-event :release (.getX e) (.getY e)
-                                                              :mouse-button btn))
+                                                              :mouse-button btn
+                                                              :modifiers (event->modifiers e)))
                              (reset! pressed? false)
                              (reset! current-button nil)))))
           on-scroll (reify EventHandler
@@ -53,7 +65,8 @@
                           (on-event
                                  (event/make-pointer-event :scroll (.getX e) (.getY e)
                                                            :delta-x (.getDeltaX e) :delta-y (.getDeltaY e)
-                                                           :mouse-button :middle)))))]
+                                                           :mouse-button :middle
+                                                           :modifiers (event->modifiers e))))))]
       (.setOnMousePressed canvas on-press)
       (.setOnMouseDragged canvas on-drag)
       (.setOnMouseReleased canvas on-release)
