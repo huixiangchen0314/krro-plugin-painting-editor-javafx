@@ -36,6 +36,11 @@
         :tag     :krro.painting/hsv-ramp
         :factory (color-picker/color-picker-component #(HSVRamp.))})
      (krro/reg-plugin!
+       {:id      :krro.painting/h-ramp-tag
+        :type    :krro.ui.javafx/tag
+        :tag     :krro.painting/h-ramp
+        :factory (color-picker/color-picker-component #(HSVRamp. 60 HSVRamp/HUE_VISIBLE))})
+     (krro/reg-plugin!
        {:id      :krro.painting/sv-rect-tag
         :type    :krro.ui.javafx/tag
         :tag     :krro.painting/sv-rect

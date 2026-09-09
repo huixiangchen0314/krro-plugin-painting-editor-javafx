@@ -1,5 +1,6 @@
 package top.kzre.krro.plugin.painting.editor.javafx.ui;
 
+import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.PixelWriter;
@@ -94,7 +95,14 @@ public final class HSVRamp extends ColorPickerBase {
     }
 
     private void handleGlobalMouseDragged(MouseEvent e) {
-        if (draggingIndex == -1) return;
+        if (draggingIndex == -1) {
+            Scene scene = getScene();
+            if (scene != null){
+                scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
+                scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
+            }
+            return;
+        }
         Canvas canvas = canvases[draggingIndex];
         if (!canvas.isVisible()) {
             draggingIndex = -1;
@@ -110,8 +118,11 @@ public final class HSVRamp extends ColorPickerBase {
     private void handleGlobalMouseReleased(MouseEvent e) {
         if (draggingIndex != -1) {
             Canvas canvas = canvases[draggingIndex];
-            canvas.getScene().removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
-            canvas.getScene().removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
+            Scene scene = canvas.getScene();
+           if (scene != null) {
+               scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
+               scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
+           }
             draggingIndex = -1;
         }
     }

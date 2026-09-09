@@ -1,5 +1,6 @@
 package top.kzre.krro.plugin.painting.editor.javafx.ui;
 
+import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.PixelWriter;
@@ -82,6 +83,14 @@ public final class ColorWheel extends ColorPickerBase {
     }
 
     private void handleMouseDragged(MouseEvent e) {
+        if (! hueMoving && !svMoving) {
+            Scene scene = canvas.getScene();
+            if (scene != null) {
+                scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleMouseDragged);
+                scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleMouseReleased);
+            }
+            return;
+        }
         double sceneX = e.getSceneX();
         double sceneY = e.getSceneY();
         double localX = canvas.sceneToLocal(sceneX, sceneY).getX();
@@ -102,8 +111,11 @@ public final class ColorWheel extends ColorPickerBase {
     }
 
     private void handleMouseReleased(MouseEvent e) {
-        canvas.getScene().removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleMouseDragged);
-        canvas.getScene().removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleMouseReleased);
+        Scene scene = canvas.getScene();
+        if(scene != null) {
+            scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleMouseDragged);
+            scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleMouseReleased);
+        }
         hueMoving = false;
         svMoving = false;
     }

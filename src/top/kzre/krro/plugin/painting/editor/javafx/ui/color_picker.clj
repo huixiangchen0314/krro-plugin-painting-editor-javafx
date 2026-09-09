@@ -38,7 +38,7 @@
               color (cond
                       (vector? color-val) (vec->color color-val)
                       (instance? Color color-val) color-val
-                      :else nil)]
+                      :else Color/BLACK)]
           (when color
             (.setColor picker color))))
       ;; 管理颜色变化监听器

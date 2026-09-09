@@ -1,5 +1,6 @@
 package top.kzre.krro.plugin.painting.editor.javafx.ui;
 
+import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.PixelWriter;
@@ -52,7 +53,14 @@ public final class SVRect extends ColorPickerBase {
     }
 
     private void handleGlobalMouseDragged(MouseEvent e) {
-        if (!dragging) return;
+        if (!dragging){
+            Scene scene = getScene();
+           if (scene != null){
+               scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
+               scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
+           }
+            return;
+        }
         double localX = canvas.sceneToLocal(e.getSceneX(), e.getSceneY()).getX();
         double localY = canvas.sceneToLocal(e.getSceneX(), e.getSceneY()).getY();
         updateFromPoint(localX, localY);
@@ -60,8 +68,11 @@ public final class SVRect extends ColorPickerBase {
 
     private void handleGlobalMouseReleased(MouseEvent e) {
         dragging = false;
-        canvas.getScene().removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
-        canvas.getScene().removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
+        Scene scene = canvas.getScene();
+        if (scene != null){
+            scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
+            scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
+        }
     }
 
     private void updateFromPoint(double x, double y) {
