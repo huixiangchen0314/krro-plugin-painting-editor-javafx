@@ -7,6 +7,7 @@ import javafx.scene.image.PixelWriter;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import top.kzre.krro.core.util.HeartbeatFlag;
 import top.kzre.krro.util.math.KMath;
 
 /**
@@ -14,6 +15,8 @@ import top.kzre.krro.util.math.KMath;
  * 垂直排列（VBox），每条带水平渐变，均可拖动调整对应的 HSV 分量。
  * 支持设置色相显示范围（例如 0-180°）和选择性显示条带。
  * 全局跟踪：光标移出画布仍可继续拖动。
+ * 绘制限流：通过 HeartbeatFlag 控制重绘频率，避免过度绘制。
+ * 内存优化：重用缓冲区数组，减少 GC。
  */
 public final class HSVRamp extends ColorPickerBase {
 
@@ -29,6 +32,7 @@ public final class HSVRamp extends ColorPickerBase {
     private static final double MIN_HEIGHT = 30;
     private static final double PREF_WIDTH = 300;
     private static final double PREF_HEIGHT = 50;
+    private static final long DRAW_INTERVAL_MS = 20; // 50fps
 
     private final VBox container;
     private final Canvas[] canvases = new Canvas[BAR_COUNT];
@@ -41,6 +45,10 @@ public final class HSVRamp extends ColorPickerBase {
     private final int hsvVisibility;
 
     private int draggingIndex = -1;
+    private final HeartbeatFlag drawBeat = new HeartbeatFlag(false, DRAW_INTERVAL_MS);
+
+    // 重用缓冲区，避免分配
+    private final boolean[] visibleBuffer = new boolean[BAR_COUNT];
 
     public static final int HUE_VISIBLE   = 1 << 0;
     public static final int SAT_VISIBLE   = 1 << 1;
@@ -74,6 +82,7 @@ public final class HSVRamp extends ColorPickerBase {
         heightProperty().addListener((obs, old, val) -> draw());
 
         draw();
+        drawBeat.beat(this);
     }
 
     private Canvas createBar() {
@@ -87,6 +96,8 @@ public final class HSVRamp extends ColorPickerBase {
             int idx = container.getChildren().indexOf(canvas);
             draggingIndex = idx;
             updateComponent(idx, ratio);
+            draw();
+            drawBeat.beat(this);
 
             canvas.getScene().addEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
             canvas.getScene().addEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
@@ -113,16 +124,22 @@ public final class HSVRamp extends ColorPickerBase {
         if (w <= 0) return;
         double ratio = clamp(localX / w);
         updateComponent(draggingIndex, ratio);
+
+        if (drawBeat.get()) {
+            return;
+        }
+        drawBeat.beat(this);
+        draw();
     }
 
     private void handleGlobalMouseReleased(MouseEvent e) {
         if (draggingIndex != -1) {
             Canvas canvas = canvases[draggingIndex];
             Scene scene = canvas.getScene();
-           if (scene != null) {
-               scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
-               scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
-           }
+            if (scene != null) {
+                scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
+                scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
+            }
             draggingIndex = -1;
         }
     }
@@ -137,7 +154,6 @@ public final class HSVRamp extends ColorPickerBase {
         }
         Color color = Color.hsb(currentHue, currentSat, currentVal);
         setColorWithoutNotify(color);
-        draw();
     }
 
     private void draw() {
@@ -145,9 +161,8 @@ public final class HSVRamp extends ColorPickerBase {
         double h = getHeight();
         if (w <= 0 || h <= 0) return;
 
-        // 计算可见条带数量
         int visibleCount = 0;
-        boolean[] visible = new boolean[BAR_COUNT];
+        boolean[] visible = visibleBuffer; // 重用
         for (int i = 0; i < BAR_COUNT; i++) {
             int mask = 1 << i;
             visible[i] = (hsvVisibility & mask) != 0;
@@ -155,7 +170,6 @@ public final class HSVRamp extends ColorPickerBase {
         }
 
         if (visibleCount == 0) {
-            // 无可见条带，隐藏所有并返回
             for (Canvas c : canvases) c.setVisible(false);
             return;
         }
@@ -164,8 +178,6 @@ public final class HSVRamp extends ColorPickerBase {
         double barH = (h - totalSpacing) / visibleCount;
         double barW = w;
 
-        // 设置每个 Canvas 的尺寸和可见性
-        int visibleIndex = 0;
         for (int i = 0; i < BAR_COUNT; i++) {
             Canvas canvas = canvases[i];
             if (visible[i]) {
@@ -175,13 +187,11 @@ public final class HSVRamp extends ColorPickerBase {
                     canvas.setWidth(barW);
                     canvas.setHeight(barH);
                 }
-                // 绘制对应的条带
                 switch (Component.values()[i]) {
                     case H: drawHueBar(canvas); break;
                     case S: drawSatBar(canvas); break;
                     case V: drawValBar(canvas); break;
                 }
-                visibleIndex++;
             } else {
                 canvas.setVisible(false);
                 canvas.setManaged(false);

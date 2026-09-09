@@ -6,13 +6,18 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.PixelWriter;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
+import top.kzre.krro.core.util.HeartbeatFlag;
 
 /**
  * SV 矩形选择器：横轴饱和度 (S)，纵轴明度 (V)，色相 (H) 由当前颜色决定。
  * 用户点击或拖动选择 S/V，指示器显示当前位置。
  * 继承自 ColorPickerBase，与颜色属性同步。
+ * 全局跟踪：光标移出画布仍可继续拖动。
+ * 绘制限流：通过 HeartbeatFlag 控制重绘频率，避免过度绘制。
  */
 public final class SVRect extends ColorPickerBase {
+
+    private static final long DRAW_INTERVAL_MS = 20; // 50fps
 
     private final Canvas canvas;
 
@@ -21,6 +26,7 @@ public final class SVRect extends ColorPickerBase {
     private double currentVal = 0.5;
 
     private boolean dragging = false;
+    private final HeartbeatFlag drawBeat = new HeartbeatFlag(false, DRAW_INTERVAL_MS);
 
     public SVRect() {
         canvas = new Canvas();
@@ -34,42 +40,48 @@ public final class SVRect extends ColorPickerBase {
         canvas.heightProperty().addListener((obs, old, val) -> draw());
 
         canvas.setOnMousePressed(this::handleMousePressed);
-        canvas.setOnMouseDragged(this::handleMouseDragged);
         draw();
+        drawBeat.beat(this);
     }
 
     private void handleMousePressed(MouseEvent e) {
         double x = e.getX();
         double y = e.getY();
         updateFromPoint(x, y);
+        // 按下时立即绘制并 beat
+        draw();
+        drawBeat.beat(this);
+
         dragging = true;
         canvas.getScene().addEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
         canvas.getScene().addEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
     }
 
-    private void handleMouseDragged(MouseEvent e) {
-        if (!dragging) return;
-        updateFromPoint(e.getX(), e.getY());
-    }
-
     private void handleGlobalMouseDragged(MouseEvent e) {
-        if (!dragging){
+        if (!dragging) {
             Scene scene = getScene();
-           if (scene != null){
-               scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
-               scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
-           }
+            if (scene != null) {
+                scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
+                scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
+            }
             return;
         }
         double localX = canvas.sceneToLocal(e.getSceneX(), e.getSceneY()).getX();
         double localY = canvas.sceneToLocal(e.getSceneX(), e.getSceneY()).getY();
         updateFromPoint(localX, localY);
+
+        // 限流绘制
+        if (drawBeat.get()) {
+            return;
+        }
+        drawBeat.beat(this);
+        draw();
     }
 
     private void handleGlobalMouseReleased(MouseEvent e) {
         dragging = false;
         Scene scene = canvas.getScene();
-        if (scene != null){
+        if (scene != null) {
             scene.removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
             scene.removeEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
         }
@@ -85,7 +97,7 @@ public final class SVRect extends ColorPickerBase {
         currentVal = v;
         Color color = Color.hsb(currentHue, currentSat, currentVal);
         setColorWithoutNotify(color);
-        draw();
+        // 注意：不在这里调用 draw()，由事件驱动或外部变化触发
     }
 
     private void draw() {
@@ -99,7 +111,7 @@ public final class SVRect extends ColorPickerBase {
         int height = (int) h;
 
         for (int y = 0; y < height; y++) {
-            double v = 1.0 - (double) y / height; // 顶部为 1，底部为 0
+            double v = 1.0 - (double) y / height;
             for (int x = 0; x < width; x++) {
                 double s = (double) x / width;
                 Color color = Color.hsb(currentHue, s, v);
@@ -107,7 +119,6 @@ public final class SVRect extends ColorPickerBase {
             }
         }
 
-        // 绘制指示器
         int sx = (int) (currentSat * w);
         int sy = (int) ((1.0 - currentVal) * h);
         gc.setStroke(Color.WHITE);
