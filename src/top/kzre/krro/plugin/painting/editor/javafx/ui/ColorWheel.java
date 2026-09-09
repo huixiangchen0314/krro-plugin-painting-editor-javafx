@@ -45,7 +45,7 @@ public final class ColorWheel extends ColorPickerBase {
         canvas.heightProperty().addListener((obs, old, val) -> draw());
 
         canvas.setOnMousePressed(this::handleMousePressed);
-        canvas.setOnMouseDragged(this::handleMouseDragged);
+//        canvas.setOnMouseDragged(this::handleMouseDragged);
 
         draw();
     }
@@ -98,6 +98,7 @@ public final class ColorWheel extends ColorPickerBase {
                 updateSVFromBarycentric(bary);
             }
         }
+        draw();
     }
 
     private void handleMouseReleased(MouseEvent e) {
@@ -143,7 +144,7 @@ public final class ColorWheel extends ColorPickerBase {
         if (angle < 0) angle += 360;
         currentHue = angle;
         Color color = Color.hsb(currentHue, currentSat, currentBright);
-        setColor(color);
+        setColorWithoutNotify(color);
     }
 
     private void updateSVFromBarycentric(double[] coords) {
@@ -156,7 +157,7 @@ public final class ColorWheel extends ColorPickerBase {
         currentSat = s;
         currentBright = v;
         Color color = Color.hsb(currentHue, currentSat, currentBright);
-        setColor(color);
+        setColorWithoutNotify(color);
     }
 
     private double[] getBarycentric(double px, double py) {
