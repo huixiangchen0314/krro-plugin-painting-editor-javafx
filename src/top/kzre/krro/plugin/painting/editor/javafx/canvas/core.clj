@@ -19,10 +19,11 @@
    [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
    [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
-   (javafx.event EventHandler)
-   (javafx.scene.canvas Canvas)
-   (javafx.scene.layout StackPane)
-   (top.kzre.krro.util.tile TiledCanvas)))
+    (javafx.beans.value ChangeListener)
+    (javafx.event EventHandler)
+    (javafx.scene.canvas Canvas)
+    (javafx.scene.layout StackPane)
+    (top.kzre.krro.util.tile TiledCanvas)))
 
 (defonce preview-canvas-key ::preview-canvas)
 
@@ -85,12 +86,17 @@
                                     canvas canvas-data dirties dirty-transform
                                     viewport viewport-w viewport-h
                                     upload-fn)))
+        ;; TODO reframe 事件完成
+        force-rerender-canvas! (fn [] (render-canvas-fn (pc/canvas-data! canvas-id) nil nil))
         mouse-input (pointer/make-pointer-input stack on-event)
 
         on-render-canvas
         (fn [cid canvas-data dirty-tiles dirty-transform]
           (when (= cid canvas-id)
-            (render-canvas-fn canvas-data dirty-tiles dirty-transform)))]
+            (render-canvas-fn canvas-data dirty-tiles dirty-transform)))
+        resize-listener (proxy [ChangeListener] []
+                          (changed [obs old new]
+                            (force-rerender-canvas!)))]
 
     (hook/add-hook! :krro.painting/render-canvas-hook on-render-canvas)
     (state/set-current-tool! canvas-id :brush)
@@ -99,6 +105,9 @@
     (.setMouseTransparent main-canvas true)
     (.setMouseTransparent overlay-canvas true)
 
+    ;; 添加尺寸监听
+    (.addListener (.widthProperty stack) resize-listener)
+    (.addListener (.heightProperty stack) resize-listener)
 
     ;; 阻止系统手势（在 StackPane 上）
     (doto stack
@@ -116,6 +125,8 @@
     (fn []
       (hook/remove-hook! :krro.painting/render-canvas-hook on-render-canvas)
       (input/stop! mouse-input)
+      (.removeListener (.widthProperty stack) resize-listener)
+      (.removeListener (.heightProperty stack) resize-listener)
       (cleanup-preview-canvas frame))))
 
 ;; ── 组件定义 ───────────────────────────────────
