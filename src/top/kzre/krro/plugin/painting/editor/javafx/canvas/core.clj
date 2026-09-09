@@ -66,6 +66,7 @@
                              ^Canvas overlay-canvas
                              canvas-id
                              frame]
+  (store/reg-canvas-store canvas-id)
   (let [render-task-id (str canvas-id "-" (frame/frame-id frame))
         init-canvas-data (pc/canvas-data! canvas-id)
         upload-fn (upload/make-uploader main-canvas)
@@ -94,8 +95,8 @@
         (fn [cid canvas-data dirty-tiles dirty-transform]
           (when (= cid canvas-id)
             (render-canvas-fn canvas-data dirty-tiles dirty-transform)))
-        resize-listener (proxy [ChangeListener] []
-                          (changed [obs old new]
+        resize-listener (reify ChangeListener
+                          (changed [_ _ old new]
                             (force-rerender-canvas!)))]
 
     (hook/add-hook! :krro.painting/render-canvas-hook on-render-canvas)
@@ -123,6 +124,7 @@
 
     ;; 清理函数
     (fn []
+      (store/unreg-canvas-store canvas-id)
       (hook/remove-hook! :krro.painting/render-canvas-hook on-render-canvas)
       (input/stop! mouse-input)
       (.removeListener (.widthProperty stack) resize-listener)
@@ -131,9 +133,7 @@
 
 ;; ── 组件定义 ───────────────────────────────────
 (def create-canvas
-  (make-component [:krro.painting/canvas-id
-                   :krro.painting/canvas-width
-                   :krro.painting/canvas-height]
+  (make-component [:krro.painting/canvas-id]
                   (fn []
                     (let [stack (StackPane.)
                           main-canvas (Canvas.)
@@ -157,16 +157,11 @@
                         (.add overlay))
                       stack))
                   (fn [^StackPane stack old-props new-props f]
-                    (let [canvas-id (:krro.painting/canvas-id new-props)
-                          children (.getChildren stack)
-                          main-canvas (.get children 0)
-                          overlay-canvas (.get children 1)]
-                      (if (nil? old-props)
-                        (start-canvas-session stack main-canvas overlay-canvas canvas-id f)
-                        (when-let [runtime (state/canvas-runtime canvas-id)]
-                          (let [[w h] (pc/canvas-size canvas-id)
-                                preview (state/preview-canvas runtime)
-                                viewport (vp/get-viewport f)
-                                upload-fn (frame/param f spec/update-fn-key)]
-                            (when upload-fn
-                              (upload-fn preview w h viewport)))))))))
+                    ;; 画布绑定到 canvas-id上
+                    (let [canvas-id (:krro.painting/canvas-id new-props)]
+                      (when (not= canvas-id (:krro.painting/canvas-id old-props))
+                        (let [
+                              children (.getChildren stack)
+                              main-canvas (.get children 0)
+                              overlay-canvas (.get children 1)]
+                          (start-canvas-session stack main-canvas overlay-canvas canvas-id f)))))))
