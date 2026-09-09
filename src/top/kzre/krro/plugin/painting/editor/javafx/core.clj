@@ -7,7 +7,7 @@
    [top.kzre.krro.plugin.painting.editor.javafx.ui.add-layer-popup :as add-layer-popup]
    [top.kzre.krro.plugin.painting.editor.javafx.ui.color-picker :as color-picker])
   (:import
-    (top.kzre.krro.plugin.painting.editor.javafx.ui ColorWheel HSVRamp)))
+    (top.kzre.krro.plugin.painting.editor.javafx.ui ColorWheel HSVRamp SVRect)))
 
 
 (krro/reg-plugin!
@@ -35,4 +35,9 @@
         :type    :krro.ui.javafx/tag
         :tag     :krro.painting/hsv-ramp
         :factory (color-picker/color-picker-component #(HSVRamp.))})
+     (krro/reg-plugin!
+       {:id      :krro.painting/sv-rect-tag
+        :type    :krro.ui.javafx/tag
+        :tag     :krro.painting/sv-rect
+        :factory (color-picker/color-picker-component #(SVRect.))})
      )})

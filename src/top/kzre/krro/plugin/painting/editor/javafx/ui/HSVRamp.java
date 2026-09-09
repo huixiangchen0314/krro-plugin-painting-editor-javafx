@@ -11,7 +11,7 @@ import top.kzre.krro.util.math.KMath;
 /**
  * 三条水平渐变带：色相 (H)、饱和度 (S)、明度 (V)。
  * 垂直排列（VBox），每条带水平渐变，均可拖动调整对应的 HSV 分量。
- * 支持设置色相显示范围（例如 0-180°），通过构造参数指定。
+ * 支持设置色相显示范围（例如 0-180°）和选择性显示条带。
  * 全局跟踪：光标移出画布仍可继续拖动。
  */
 public final class HSVRamp extends ColorPickerBase {
@@ -27,7 +27,7 @@ public final class HSVRamp extends ColorPickerBase {
     private static final double MIN_WIDTH = 200;
     private static final double MIN_HEIGHT = 30;
     private static final double PREF_WIDTH = 300;
-    private static final double PREF_HEIGHT = 100;
+    private static final double PREF_HEIGHT = 50;
 
     private final VBox container;
     private final Canvas[] canvases = new Canvas[BAR_COUNT];
@@ -37,15 +37,25 @@ public final class HSVRamp extends ColorPickerBase {
     private double currentVal = 1.0;
 
     private final double hueRange;
+    private final int hsvVisibility;
 
     private int draggingIndex = -1;
+
+    public static final int HUE_VISIBLE   = 1 << 0;
+    public static final int SAT_VISIBLE   = 1 << 1;
+    public static final int VAL_VISIBLE   = 1 << 2;
 
     public HSVRamp() {
         this(60.0);
     }
 
     public HSVRamp(double hueRange) {
+        this(hueRange, HUE_VISIBLE | SAT_VISIBLE | VAL_VISIBLE);
+    }
+
+    public HSVRamp(double hueRange, int hsvVisibility) {
         this.hueRange = KMath.clampd(hueRange, 0, 360);
+        this.hsvVisibility = hsvVisibility & (HUE_VISIBLE | SAT_VISIBLE | VAL_VISIBLE);
 
         container = new VBox(BAR_SPACING);
         container.setStyle(String.format("-fx-padding: %fpx; -fx-background-color: #f0f0f0;", PADDING));
@@ -77,7 +87,6 @@ public final class HSVRamp extends ColorPickerBase {
             draggingIndex = idx;
             updateComponent(idx, ratio);
 
-            // 添加全局监听，确保鼠标移出画布也能继续跟踪
             canvas.getScene().addEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
             canvas.getScene().addEventFilter(MouseEvent.MOUSE_RELEASED, this::handleGlobalMouseReleased);
         });
@@ -86,8 +95,11 @@ public final class HSVRamp extends ColorPickerBase {
 
     private void handleGlobalMouseDragged(MouseEvent e) {
         if (draggingIndex == -1) return;
-        // 转换到画布坐标
         Canvas canvas = canvases[draggingIndex];
+        if (!canvas.isVisible()) {
+            draggingIndex = -1;
+            return;
+        }
         double localX = canvas.sceneToLocal(e.getSceneX(), e.getSceneY()).getX();
         double w = canvas.getWidth();
         if (w <= 0) return;
@@ -96,7 +108,6 @@ public final class HSVRamp extends ColorPickerBase {
     }
 
     private void handleGlobalMouseReleased(MouseEvent e) {
-        // 移除全局监听
         if (draggingIndex != -1) {
             Canvas canvas = canvases[draggingIndex];
             canvas.getScene().removeEventFilter(MouseEvent.MOUSE_DRAGGED, this::handleGlobalMouseDragged);
@@ -123,20 +134,48 @@ public final class HSVRamp extends ColorPickerBase {
         double h = getHeight();
         if (w <= 0 || h <= 0) return;
 
-        double totalSpacing = BAR_SPACING * (BAR_COUNT - 1);
-        double barH = (h - totalSpacing) / BAR_COUNT;
-        double barW = w;
-
-        for (Canvas canvas : canvases) {
-            if (canvas.getWidth() != barW || canvas.getHeight() != barH) {
-                canvas.setWidth(barW);
-                canvas.setHeight(barH);
-            }
+        // 计算可见条带数量
+        int visibleCount = 0;
+        boolean[] visible = new boolean[BAR_COUNT];
+        for (int i = 0; i < BAR_COUNT; i++) {
+            int mask = 1 << i;
+            visible[i] = (hsvVisibility & mask) != 0;
+            if (visible[i]) visibleCount++;
         }
 
-        drawHueBar(canvases[0]);
-        drawSatBar(canvases[1]);
-        drawValBar(canvases[2]);
+        if (visibleCount == 0) {
+            // 无可见条带，隐藏所有并返回
+            for (Canvas c : canvases) c.setVisible(false);
+            return;
+        }
+
+        double totalSpacing = BAR_SPACING * (visibleCount - 1);
+        double barH = (h - totalSpacing) / visibleCount;
+        double barW = w;
+
+        // 设置每个 Canvas 的尺寸和可见性
+        int visibleIndex = 0;
+        for (int i = 0; i < BAR_COUNT; i++) {
+            Canvas canvas = canvases[i];
+            if (visible[i]) {
+                canvas.setVisible(true);
+                canvas.setManaged(true);
+                if (canvas.getWidth() != barW || canvas.getHeight() != barH) {
+                    canvas.setWidth(barW);
+                    canvas.setHeight(barH);
+                }
+                // 绘制对应的条带
+                switch (Component.values()[i]) {
+                    case H: drawHueBar(canvas); break;
+                    case S: drawSatBar(canvas); break;
+                    case V: drawValBar(canvas); break;
+                }
+                visibleIndex++;
+            } else {
+                canvas.setVisible(false);
+                canvas.setManaged(false);
+            }
+        }
     }
 
     private void drawHueBar(Canvas canvas) {
