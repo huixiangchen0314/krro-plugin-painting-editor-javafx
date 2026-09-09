@@ -28,7 +28,7 @@
 (def create-add-layer-popup
   (make-component [:krro.painting/canvas-id]
                   (fn [] (doto (Button. "＋") (.setId "add-layer-btn")))
-                  (fn [^Button btn _old-props new-props f]
+                  (fn [^Button btn _old-props new-props frame]
                     (let [canvas-id (:krro.painting/canvas-id new-props)
                           popup (Popup.)]
                       (.setAutoHide popup true)
