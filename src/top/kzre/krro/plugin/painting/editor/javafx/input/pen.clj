@@ -7,14 +7,14 @@
   (:import
     (top.kzre.pen4j.api PenEvent PenListener PenState)
     (top.kzre.pen4j.core PenContext)
-    (top.kzre.pen4j.windows.wintab WinTabDriver)))
+    (top.kzre.pen4j.windows.rawinput RawInputDriver)))
 
 
 (defrecord PenBuffered [hwnd node on-event pressed? pen-context]
   input/IInputSource
   (start! [_]
     (try
-      (let [driver (WinTabDriver.)
+      (let [driver (RawInputDriver.)
             context (PenContext/create driver)]
         (.addListener context
                       (reify PenListener

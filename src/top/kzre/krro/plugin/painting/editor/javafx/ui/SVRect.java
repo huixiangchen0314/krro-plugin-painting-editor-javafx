@@ -17,7 +17,7 @@ import top.kzre.krro.core.util.HeartbeatFlag;
  */
 public final class SVRect extends ColorPickerBase {
 
-    private static final long DRAW_INTERVAL_MS = 20; // 50fps
+    private static final long DRAW_INTERVAL_NANOS = 20_000_000L; // 50fps
 
     private final Canvas canvas;
 
@@ -26,7 +26,7 @@ public final class SVRect extends ColorPickerBase {
     private double currentVal = 0.5;
 
     private boolean dragging = false;
-    private final HeartbeatFlag drawBeat = new HeartbeatFlag(false, DRAW_INTERVAL_MS);
+    private final HeartbeatFlag drawBeat = new HeartbeatFlag(DRAW_INTERVAL_NANOS);
 
     public SVRect() {
         canvas = new Canvas();

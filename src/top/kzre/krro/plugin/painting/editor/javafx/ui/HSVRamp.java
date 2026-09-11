@@ -32,7 +32,7 @@ public final class HSVRamp extends ColorPickerBase {
     private static final double MIN_HEIGHT = 30;
     private static final double PREF_WIDTH = 300;
     private static final double PREF_HEIGHT = 50;
-    private static final long DRAW_INTERVAL_MS = 20; // 50fps
+    private static final long DRAW_INTERVAL_NANOS = 20_000_000L; // 50fps
 
     private final VBox container;
     private final Canvas[] canvases = new Canvas[BAR_COUNT];
@@ -45,7 +45,7 @@ public final class HSVRamp extends ColorPickerBase {
     private final int hsvVisibility;
 
     private int draggingIndex = -1;
-    private final HeartbeatFlag drawBeat = new HeartbeatFlag(false, DRAW_INTERVAL_MS);
+    private final HeartbeatFlag drawBeat = new HeartbeatFlag(DRAW_INTERVAL_NANOS);
 
     // 重用缓冲区，避免分配
     private final boolean[] visibleBuffer = new boolean[BAR_COUNT];

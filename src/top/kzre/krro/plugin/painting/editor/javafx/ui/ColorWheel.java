@@ -18,7 +18,7 @@ public final class ColorWheel extends ColorPickerBase {
 
     public static final double INNER_RADIUS_RATIO = 0.8;
     public static final double EPSILON = 1e-9;
-    private static final long DRAW_INTERVAL_MS = 20; // 50fps
+    private static final long DRAW_INTERVAL_NANOS = 20_000_000L; // 50fps
 
     private final Canvas canvas;
     private double centerX, centerY;
@@ -37,7 +37,7 @@ public final class ColorWheel extends ColorPickerBase {
     private boolean hueMoving = false;
     private boolean svMoving = false;
 
-    private final HeartbeatFlag drawBeat = new HeartbeatFlag(false, DRAW_INTERVAL_MS);
+    private final HeartbeatFlag drawBeat = new HeartbeatFlag(DRAW_INTERVAL_NANOS);
 
     // 缓冲数组，重用避免分配
     private final double[] baryBuffer = new double[3];
