@@ -16,7 +16,8 @@
    [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload]
    [top.kzre.krro.plugin.painting.editor.javafx.graph :as graph]
    [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
-   [top.kzre.krro.ui.javafx.core :refer [make-component]])
+   [top.kzre.krro.ui.javafx.core :refer [make-component]]
+   [top.kzre.krro.plugin.painting.core.model.tiled-image :as tiled-image])
   (:import
     (javafx.beans.value ChangeListener)
     (javafx.event EventHandler)
@@ -82,10 +83,13 @@
                 (if (bigger-canvas? frame viewport-w viewport-h)
                   [(reset-preview-canvas frame) nil]
                   [(get-preview-canvas frame) dirty-tiles])]
-            (render/request-render-viewport! render-task-id
-                                    canvas canvas-data dirties dirty-transform
-                                    viewport viewport-w viewport-h
-                                    upload-fn)))
+            (render/request-render-viewport!
+              render-task-id
+              (tiled-image/->TiledImage canvas (:width canvas-data) (:height canvas-data))
+              (:layers canvas-data)
+              dirties dirty-transform
+              viewport viewport-w viewport-h
+              #(upload-fn canvas canvas-data viewport))))
         ;; TODO reframe 事件完成
         force-rerender-canvas! (fn [] (render-canvas-fn (pc/canvas-data! canvas-id) nil nil))
         mouse-input (pointer/make-pointer-input stack on-event)

@@ -4,12 +4,11 @@
     [top.kzre.krro.ui.javafx.core :refer [make-component]]
     [top.kzre.krro.ui.javafx.util :as javafx.util])
   (:import
-    (javafx.animation PauseTransition)
     (javafx.beans.value ChangeListener)
-    (javafx.event EventHandler)
     (javafx.scene.paint Color)
-    (javafx.util Duration)
     (top.kzre.krro.plugin.painting.editor.javafx.ui ColorPickerBase)))
+
+
 
 (def ^:private debounce-delay-ms 33)
 

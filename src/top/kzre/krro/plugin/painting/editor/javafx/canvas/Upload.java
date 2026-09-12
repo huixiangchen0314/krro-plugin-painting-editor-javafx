@@ -15,41 +15,52 @@ public final class Upload {
     private static final int CHECKER_COLOR1 = 0xFFCCCCCC;
     private static final int CHECKER_COLOR2 = 0xFF888888;
     // 64x64 像素一个棋盘格
-    private static final int CHECKER_GRID = 64;
+    private static int CHECKER_GRID = 64;
+
+    public static void setCheckerGrid(int checkerGrid) {
+        CHECKER_GRID = checkerGrid;
+    }
+
     private static final int GRAY_ARGB = 0xFF888888;
     private static final ObjectPool<TileTask> taskPool = new ObjectPool<>(TileTask::new, 1024, TileTask::reset);
-    /**
-     * 上传画布，画布已经经过预先视口变换，采样直接像素
-     */
-    public static void uploadPreTransformed(TiledCanvas canvas, int imgW, int imgH,
-                                            double offsetX, double offsetY, double zoom,
-                                            PixelWriter writer, int canvasW, int canvasH, int[] pixels) {
-//        long t0 = System.nanoTime();
 
-        int channels = canvas.getChannels();
+    // TODO dirty-tiles, 仅变换复用
+
+    public static void writePixels(PixelWriter writer, int viewportW, int viewportH, int[] pixels) {
+        writer.setPixels(0, 0, viewportW, viewportH,
+                PixelFormat.getIntArgbPreInstance(),
+                pixels, 0, viewportW);
+    }
+
+    public static void sampleViewport(TiledCanvas viewportCanvas, int viewportW, int viewportH,
+                                      double offsetX, double offsetY, double zoom,
+                                      int imageW, int imageH,
+                                      int[] pixels) {
+
+
+        int channels = viewportCanvas.getChannels();
         assert channels == 4;
-        int tileSize = canvas.getTileSize();
-        assert pixels.length == canvasW * canvasH;
-//        int[] pixels = new int[canvasW * canvasH];
-//        long t1 = System.nanoTime();
+        int tileSize = viewportCanvas.getTileSize();
+        assert pixels.length == viewportW * viewportH;
+
 
         // 预计算图像在屏幕空间的边界
         int intImgMinX = (int) Math.ceil(-offsetX * zoom);
-        int intImgMaxX = (int) Math.floor((imgW - offsetX) * zoom);
+        int intImgMaxX = (int) Math.floor((imageW - offsetX) * zoom);
         int intImgMinY = (int) Math.ceil(-offsetY * zoom);
-        int intImgMaxY = (int) Math.floor((imgH - offsetY) * zoom);
+        int intImgMaxY = (int) Math.floor((imageH - offsetY) * zoom);
 
         // 屏幕瓦片范围
         int tileMinX = 0;
-        int tileMaxX = TiledCanvas.tileX(canvasW - 1, tileSize);
+        int tileMaxX = TiledCanvas.tile(viewportW - 1, tileSize);
         int tileMinY = 0;
-        int tileMaxY = TiledCanvas.tileY(canvasH - 1, tileSize);
+        int tileMaxY = TiledCanvas.tile(viewportH - 1, tileSize);
 
         List<TileTask> tasks = new ArrayList<>();
         for (int tx = tileMinX; tx <= tileMaxX; tx++) {
             for (int ty = tileMinY; ty <= tileMaxY; ty++) {
                 TileTask task = taskPool.acquire();
-                task.set(tx, ty, canvas, tileSize, pixels, canvasW, canvasH,
+                task.set(tx, ty, viewportCanvas, tileSize, pixels, viewportW, viewportH,
                         intImgMinX, intImgMaxX, intImgMinY, intImgMaxY);
                 tasks.add(task);
             }
@@ -57,14 +68,6 @@ public final class Upload {
         ForkJoinTask.invokeAll(tasks);
         tasks.forEach(taskPool::release);
         tasks.clear();
-//        long t2 = System.nanoTime();
-        writer.setPixels(0, 0, canvasW, canvasH,
-                PixelFormat.getIntArgbPreInstance(),
-                pixels, 0, canvasW);
-//        long t3 = System.nanoTime();
-
-//        System.out.printf("uploadPreTransformed: alloc=%.3fms, sample=%.3fms, setPixels=%.3fms, total=%.3fms%n",
-//                (t1-t0)/1e6, (t2-t1)/1e6, (t3-t2)/1e6, (t3-t0)/1e6);
     }
 
     private static class TileTask extends RecursiveAction {

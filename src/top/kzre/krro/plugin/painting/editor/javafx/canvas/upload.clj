@@ -1,8 +1,10 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.canvas.upload
   (:require
-   [taoensso.timbre :as log]
-   [taoensso.tufte :refer [p profile]]
-   [top.kzre.krro.plugin.painting.core.viewport])
+    [taoensso.timbre :as log]
+    [taoensso.tufte :refer [p profile]]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.viewport]
+    [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload])
   (:import
    (javafx.application Platform)
    (javafx.scene.canvas Canvas)
@@ -10,6 +12,7 @@
    (top.kzre.krro.plugin.painting.core.viewport ViewPort)
    (top.kzre.krro.plugin.painting.editor.javafx.canvas Upload)
    (top.kzre.krro.util.tile TiledCanvas)))
+(Upload/setCheckerGrid pc/global-tile-size)
 
 (defn make-uploader [^Canvas fx-canvas]
   (let [^PixelWriter pixel-writer (.getPixelWriter (.getGraphicsContext2D fx-canvas))
@@ -26,7 +29,7 @@
                     now (System/currentTimeMillis)]
                 (profile {:id :kroo.painting/javafx-upload-task}
                          (if params
-                           (let [[snapshot img-w img-h viewport] params]
+                           (let [[snapshot image-w image-h viewport] params]
                              (if (< (- now @last-upload-time) min-interval)
                                ;; 限流：保存完整参数，安排延迟任务
                                (do
@@ -52,14 +55,15 @@
                                           (let [offset-x (int (or (:offset-x viewport) 0))
                                                 offset-y (int (or (:offset-y viewport) 0))
                                                 zoom     (double (or (:zoom viewport) 1.0))
-                                                w (int canvas-w)
-                                                h (int canvas-h)
-                                                len (* w h)]
+                                                viewport-w (int canvas-w)
+                                                viewport-h (int canvas-h)
+                                                len (* viewport-w viewport-h)]
                                             (if-let [pixels @int-pixels]
                                               (when-not (= (alength pixels) len)
                                                 (reset! int-pixels (int-array len)))
                                               (reset! int-pixels (int-array len)))
-                                            (Upload/uploadPreTransformed snapshot img-w img-h offset-x offset-y zoom pixel-writer w h @int-pixels)
+                                            (Upload/sampleViewport snapshot viewport-w viewport-h offset-x offset-y zoom image-w image-h @int-pixels)
+                                            (Upload/writePixels pixel-writer viewport-w viewport-h @int-pixels)
 
                                             (log/debug "Uploaded canvas to JavaFX"))
                                           (log/warn "Canvas size is zero or null, skipping upload")))
