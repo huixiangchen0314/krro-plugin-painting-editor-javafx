@@ -6,16 +6,9 @@
         top.kzre/krro-ui-javafx {:mvn/version "0.1.0"}
         top.kzre/pen4j-all {:mvn/version "1.0-SNAPSHOT"}
 
-        ;; LWJGL 核心 + OpenGL（含多平台 natives）
-        org.lwjgl/lwjgl {:mvn/version "3.3.3"}
-        org.lwjgl/lwjgl-opengl {:mvn/version "3.3.3"}
+        ;; 最终聚合包，集成加速拓展
+        top.kzre/krro-canvas-gl {:mvn/version "0.1.0"}
 
-        org.lwjgl/lwjgl-glfw {:mvn/version "3.3.3"}
-
-        ;; LWJGL 核心 + 扩展（Windows 版，自带 native 库）
-        org.lwjgl/lwjgl$natives-windows        {:mvn/version "3.3.3"}
-        org.lwjgl/lwjgl-opengl$natives-windows {:mvn/version "3.3.3"}
-        org.lwjgl/lwjgl-glfw$natives-windows   {:mvn/version "3.3.3"}
         }
 
  :aliases
