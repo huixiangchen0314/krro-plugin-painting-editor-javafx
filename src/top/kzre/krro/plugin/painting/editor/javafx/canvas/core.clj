@@ -3,34 +3,38 @@
    [top.kzre.krro.canvas.vector.core]
    [top.kzre.krro.core.frame :as frame]
    [top.kzre.krro.core.hook :as hook]
-   [top.kzre.krro.core.reframe :as rf]
+   [top.kzre.krro.core.reframe.core :as rf]
+   [top.kzre.krro.core.util.promise :as promise]
+   [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
    [top.kzre.krro.plugin.painting.core.core]
    [top.kzre.krro.plugin.painting.core.input :as input]
    [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
    [top.kzre.krro.plugin.painting.core.project.core]
-   [top.kzre.krro.plugin.painting.core.render :as render]
+   [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
+   [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
    [top.kzre.krro.plugin.painting.core.state :as state]
    [top.kzre.krro.plugin.painting.core.store :as store]
    [top.kzre.krro.plugin.painting.core.viewport :as vp]
    [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload]
    [top.kzre.krro.plugin.painting.editor.javafx.graph :as graph]
    [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
-   [top.kzre.krro.ui.javafx.core :refer [make-component]]
-   [top.kzre.krro.plugin.painting.core.model.tiled-image :as tiled-image])
+   [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
-    (javafx.beans.value ChangeListener)
-    (javafx.event EventHandler)
-    (javafx.scene.canvas Canvas)
-    (javafx.scene.layout StackPane)
-    (top.kzre.krro.util.tile TiledCanvas)))
+   (javafx.beans.value ChangeListener)
+   (javafx.event EventHandler)
+   (javafx.scene.canvas Canvas)
+   (javafx.scene.layout StackPane)
+   (top.kzre.krro.util.tile TiledCanvas)))
+
+;; TODO 1. 组件化画布用于重用
 
 (defonce preview-canvas-key ::preview-canvas)
 
 (defn cleanup-preview-canvas
   [frame]
   (when-let [canvas (frame/param frame preview-canvas-key)]
-    (.clear canvas)))
+    (.close canvas)))
 
 (defn get-preview-canvas
   [frame]
@@ -55,7 +59,7 @@
   "重置预览画布,返回新的预览画布"
   [frame]
   (when-let [canvas (frame/param frame preview-canvas-key)]
-    (.clear canvas))
+    (.close canvas))
   (let [new-canvas (TiledCanvas. pc/global-tile-size)]
     (frame/set-param! frame preview-canvas-key new-canvas)
     new-canvas))
@@ -71,33 +75,46 @@
         init-canvas-data (pc/canvas-data! canvas-id)
         upload-fn (upload/make-uploader main-canvas)
         overlay-gc (.getGraphicsContext2D overlay-canvas)
+        scheduler (scheduler-impl/make-scheduler)
         on-event (fn [ev]
                    (rf/dispatch store/app-id [:canvas/set-cursor-position canvas-id ev])
                    (rf/dispatch store/app-id [:tool/dispatch-event canvas-id ev frame]))
         render-canvas-fn
-        (fn [canvas-data dirty-tiles dirty-transform]
+        (fn [{:keys [layers width height current-layer-id]
+              :as canvas-data}
+             changes]
           (let [viewport (vp/get-viewport frame)
                 viewport-w (.getWidth main-canvas)
                 viewport-h (.getHeight main-canvas)
-                [canvas dirties]
+                canvas
                 (if (bigger-canvas? frame viewport-w viewport-h)
-                  [(reset-preview-canvas frame) nil]
-                  [(get-preview-canvas frame) dirty-tiles])]
-            (render/request-render-viewport!
-              render-task-id
-              (tiled-image/->TiledImage canvas (:width canvas-data) (:height canvas-data))
-              (:layers canvas-data)
-              dirties dirty-transform
-              viewport viewport-w viewport-h
-              #(upload-fn canvas canvas-data viewport))))
+                  (reset-preview-canvas frame)
+                  (get-preview-canvas frame))]
+            ;; ── 提交到 executor——克隆、set-layers!、渲染、合并全在 executor 内部
+            (promise/tap
+              (executor/submit!
+                render-task-id
+                scheduler
+                layers
+                :canvas           canvas
+                :changes          changes
+                :image-width      width
+                :image-height     height
+                :current-layer-id current-layer-id
+                :viewport         viewport
+                :viewport-w       viewport-w
+                :viewport-h       viewport-h)
+              (fn [_] (upload-fn canvas canvas-data viewport)))))
         ;; TODO reframe 事件完成
-        force-rerender-canvas! (fn [] (render-canvas-fn (pc/canvas-data! canvas-id) nil nil))
+        force-rerender-canvas! (fn [] (render-canvas-fn
+                                        (pc/canvas-data! canvas-id)
+                                        [(viewport/refreshed)]))
         mouse-input (pointer/make-pointer-input stack on-event)
 
         on-render-canvas
-        (fn [cid canvas-data dirty-tiles dirty-transform]
+        (fn [cid canvas-data changes]
           (when (= cid canvas-id)
-            (render-canvas-fn canvas-data dirty-tiles dirty-transform)))
+            (render-canvas-fn canvas-data changes)))
         resize-listener (reify ChangeListener
                           (changed [_ _ old new]
                             (force-rerender-canvas!)))]
@@ -120,13 +137,14 @@
       (.setFocusTraversable false))
 
     (layer/auto-select-layer! canvas-id)
-    (render-canvas-fn init-canvas-data nil nil)
+    (render-canvas-fn init-canvas-data [(viewport/refreshed)])
 
     ;; 启动输入源
     (input/start! mouse-input)
 
     ;; 清理函数
     (fn []
+      (.close scheduler)
       (store/unreg-canvas-store canvas-id)
       (hook/remove-hook! :krro.painting/render-canvas-hook on-render-canvas)
       (input/stop! mouse-input)

@@ -6,9 +6,6 @@
         top.kzre/krro-ui-javafx {:mvn/version "0.1.0"}
         top.kzre/pen4j-all {:mvn/version "1.0-SNAPSHOT"}
 
-        ;; 最终聚合包，集成加速拓展
-        top.kzre/krro-canvas-gl {:mvn/version "0.1.0"}
-
         }
 
  :aliases

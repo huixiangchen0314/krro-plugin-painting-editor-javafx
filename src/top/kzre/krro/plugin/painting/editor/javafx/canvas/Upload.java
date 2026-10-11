@@ -1,5 +1,6 @@
 package top.kzre.krro.plugin.painting.editor.javafx.canvas;
 
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.PixelFormat;
 import javafx.scene.image.PixelWriter;
 import top.kzre.krro.util.pool.ObjectPool;
@@ -27,6 +28,7 @@ public final class Upload {
     // TODO dirty-tiles, 仅变换复用
 
     public static void writePixels(PixelWriter writer, int viewportW, int viewportH, int[] pixels) {
+        GraphicsContext gc;
         writer.setPixels(0, 0, viewportW, viewportH,
                 PixelFormat.getIntArgbPreInstance(),
                 pixels, 0, viewportW);
@@ -82,6 +84,7 @@ public final class Upload {
         public void set(int tx, int ty, TiledCanvas canvas, int tileSize, int[] pixels,
                  int canvasW, int canvasH,
                  int intImgMinX, int intImgMaxX, int intImgMinY, int intImgMaxY) {
+
             this.tx = tx; this.ty = ty;
             this.canvas = canvas; this.tileSize = tileSize;
             this.pixels = pixels; this.canvasW = canvasW; this.canvasH = canvasH;

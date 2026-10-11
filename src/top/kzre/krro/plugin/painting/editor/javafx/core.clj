@@ -3,7 +3,7 @@
    [top.kzre.krro.core.core :as krro]
    [top.kzre.krro.plugin.painting.core.core]
    [top.kzre.krro.plugin.painting.editor.core.core]
-   [top.kzre.krro.canvas.gl.core]
+
    [top.kzre.krro.plugin.painting.editor.javafx.canvas.core :as canvas]
    [top.kzre.krro.plugin.painting.editor.javafx.ui.add-layer-popup :as add-layer-popup]
    [top.kzre.krro.plugin.painting.editor.javafx.ui.color-picker :as color-picker])

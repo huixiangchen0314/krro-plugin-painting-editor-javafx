@@ -3,8 +3,7 @@
     [taoensso.timbre :as log]
     [taoensso.tufte :refer [p profile]]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.viewport]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload])
+    [top.kzre.krro.plugin.painting.core.viewport])
   (:import
    (javafx.application Platform)
    (javafx.scene.canvas Canvas)
@@ -70,13 +69,15 @@
                                       (catch Exception e
                                         (log/error e "Failed to upload canvas to JavaFX"))
                                       (finally
-                                        (.clear ^TiledCanvas snapshot)
+                                        (try
+                                          (.close ^TiledCanvas snapshot)
+                                          (catch Throwable t))
                                         (reset! running? false)
                                         (when @pending-params
                                           (Platform/runLater upload-task))))))))
                            (reset! running? false)))))]
 
-      (fn [^TiledCanvas canvas {:keys [width height]} ^ViewPort viewport]
+      (fn [canvas {:keys [width height]} ^ViewPort viewport]
         (let [snapshot (.copy canvas)]
           (reset! pending-params [snapshot width height viewport])
           (when (compare-and-set! running? false true)
