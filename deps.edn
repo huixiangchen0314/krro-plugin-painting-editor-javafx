@@ -4,8 +4,16 @@
         top.kzre/krro-util-tile {:mvn/version "1.0-SNAPSHOT"}
         top.kzre/krro-plugin-painting-editor-core {:mvn/version "0.1.0"}
         top.kzre/krro-ui-javafx {:mvn/version "0.1.0"}
+
+        ;; 使用 pen4j 中携带的 jna
         top.kzre/pen4j-all {:mvn/version "1.0-SNAPSHOT"}
 
+        com.huskerdev/openglfx-lwjgl {:mvn/version "4.2.3"}
+        ;; Kotlin stdlib——OpenGLFX POM 未指定版本，tools.deps 无法解析继承链，
+        ;; 必须手动 pin
+        org.jetbrains.kotlin/kotlin-stdlib-jdk8 {:mvn/version "1.9.22"}
+        org.jetbrains.kotlin/kotlin-stdlib-jdk7 {:mvn/version "1.9.22"}
+        org.jetbrains.kotlin/kotlin-stdlib      {:mvn/version "1.9.22"}
         }
 
  :aliases

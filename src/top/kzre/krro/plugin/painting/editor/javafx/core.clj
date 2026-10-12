@@ -11,6 +11,7 @@
     (top.kzre.krro.plugin.painting.editor.javafx.ui ColorWheel HSVRamp SVRect)))
 
 
+
 (krro/reg-plugin!
   {:name :krro.plugin/painting
    :mount

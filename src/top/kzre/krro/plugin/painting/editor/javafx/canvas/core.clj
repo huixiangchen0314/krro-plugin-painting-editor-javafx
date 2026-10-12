@@ -1,33 +1,32 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.canvas.core
   (:require
-   [top.kzre.krro.canvas.vector.core]
-   [top.kzre.krro.core.frame :as frame]
-   [top.kzre.krro.core.hook :as hook]
-   [top.kzre.krro.core.reframe.core :as rf]
-   [top.kzre.krro.core.util.promise :as promise]
-   [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
-   [top.kzre.krro.plugin.painting.core.core]
-   [top.kzre.krro.plugin.painting.core.input :as input]
-   [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
-   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-   [top.kzre.krro.plugin.painting.core.project.core]
-   [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
-   [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
-   [top.kzre.krro.plugin.painting.core.state :as state]
-   [top.kzre.krro.plugin.painting.core.store :as store]
-   [top.kzre.krro.plugin.painting.core.viewport :as vp]
-   [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload]
-   [top.kzre.krro.plugin.painting.editor.javafx.graph :as graph]
-   [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
-   [top.kzre.krro.ui.javafx.core :refer [make-component]])
+    [top.kzre.krro.canvas.vector.core]
+    [top.kzre.krro.core.frame :as frame]
+    [top.kzre.krro.core.hook :as hook]
+    [top.kzre.krro.core.reframe.core :as rf]
+    [top.kzre.krro.core.util.promise :as promise]
+    [top.kzre.krro.core.variable :as variable]
+    [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
+    [top.kzre.krro.plugin.painting.core.core]
+    [top.kzre.krro.plugin.painting.core.input :as input]
+    [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.core]
+    [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
+    [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
+    [top.kzre.krro.plugin.painting.core.state :as state]
+    [top.kzre.krro.plugin.painting.core.store :as store]
+    [top.kzre.krro.plugin.painting.core.viewport :as vp]
+    [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload]
+    [top.kzre.krro.plugin.painting.editor.javafx.graph :as graph]
+    [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
+    [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
    (javafx.beans.value ChangeListener)
    (javafx.event EventHandler)
    (javafx.scene.canvas Canvas)
    (javafx.scene.layout StackPane)
    (top.kzre.krro.util.tile TiledCanvas)))
-
-;; TODO 1. 组件化画布用于重用
 
 (defonce preview-canvas-key ::preview-canvas)
 

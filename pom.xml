@@ -17,18 +17,23 @@
         <clojure.version>1.11.1</clojure.version>
         <lwjgl.version>3.3.3</lwjgl.version>
         <timbre.version>6.3.1</timbre.version>
+        <kotlin.version>1.9.22</kotlin.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <dependencies>
-        <!-- Clojure -->
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- Clojure                                      -->
+        <!-- ═══════════════════════════════════════════ -->
         <dependency>
             <groupId>org.clojure</groupId>
             <artifactId>clojure</artifactId>
             <version>${clojure.version}</version>
         </dependency>
 
-        <!-- Krrō modules -->
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- Krrō 模块                                    -->
+        <!-- ═══════════════════════════════════════════ -->
         <dependency>
             <groupId>top.kzre</groupId>
             <artifactId>krro-plugin-painting-editor-core</artifactId>
@@ -48,6 +53,39 @@
             <groupId>top.kzre</groupId>
             <artifactId>krro-canvas-gl</artifactId>
             <version>0.1.0</version>
+        </dependency>
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- OpenGLFX：JavaFX 与 OpenGL 共享上下文         -->
+        <!-- ═══════════════════════════════════════════ -->
+        <dependency>
+            <groupId>com.huskerdev</groupId>
+            <artifactId>openglfx-lwjgl</artifactId>
+            <version>4.2.3</version>
+        </dependency>
+
+        <!-- OpenGLFX 依赖 Kotlin——其 POM 里对以下 artifact 未指定版本
+             （依赖父 POM 的 dependencyManagement，Maven 能解析，
+             但 tools.deps 不读继承链——必须显式 pin） -->
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib-jdk8</artifactId>
+            <version>${kotlin.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib-jdk7</artifactId>
+            <version>${kotlin.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib</artifactId>
+            <version>${kotlin.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib-common</artifactId>
+            <version>${kotlin.version}</version>
         </dependency>
     </dependencies>
 </project>
