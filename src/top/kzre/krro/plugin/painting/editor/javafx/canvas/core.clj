@@ -1,67 +1,32 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.canvas.core
   (:require
-    [top.kzre.krro.canvas.vector.core]
-    [top.kzre.krro.core.frame :as frame]
-    [top.kzre.krro.core.hook :as hook]
-    [top.kzre.krro.core.reframe.core :as rf]
-    [top.kzre.krro.core.util.promise :as promise]
-    [top.kzre.krro.core.variable :as variable]
-    [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
-    [top.kzre.krro.plugin.painting.core.core]
-    [top.kzre.krro.plugin.painting.core.input :as input]
-    [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.project.core]
-    [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
-    [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
-    [top.kzre.krro.plugin.painting.core.state :as state]
-    [top.kzre.krro.plugin.painting.core.store :as store]
-    [top.kzre.krro.plugin.painting.core.viewport :as vp]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload]
-    [top.kzre.krro.plugin.painting.editor.javafx.graph :as graph]
-    [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
-    [top.kzre.krro.ui.javafx.core :refer [make-component]])
+   [top.kzre.krro.canvas.vector.core]
+   [top.kzre.krro.core.frame :as frame]
+   [top.kzre.krro.core.hook :as hook]
+   [top.kzre.krro.core.reframe.core :as rf]
+   [top.kzre.krro.core.util.promise :as promise]
+   [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
+   [top.kzre.krro.plugin.painting.core.core]
+   [top.kzre.krro.plugin.painting.core.input :as input]
+   [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.project.core]
+   [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
+   [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
+   [top.kzre.krro.plugin.painting.core.state :as state]
+   [top.kzre.krro.plugin.painting.core.store :as store]
+   [top.kzre.krro.plugin.painting.core.viewport :as vp]
+   [top.kzre.krro.plugin.painting.editor.javafx.canvas.gl :as gl]
+   [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload]
+   [top.kzre.krro.plugin.painting.editor.javafx.graph :as graph]
+   [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
+   [top.kzre.krro.ui.javafx.core :refer [make-component]])
   (:import
    (javafx.beans.value ChangeListener)
    (javafx.event EventHandler)
    (javafx.scene.canvas Canvas)
    (javafx.scene.layout StackPane)
    (top.kzre.krro.util.tile TiledCanvas)))
-
-(defonce preview-canvas-key ::preview-canvas)
-
-(defn cleanup-preview-canvas
-  [frame]
-  (when-let [canvas (frame/param frame preview-canvas-key)]
-    (.close canvas)))
-
-(defn get-preview-canvas
-  [frame]
-  (if-let [canvas (frame/param frame preview-canvas-key)]
-    canvas
-    (let [new-canvas (TiledCanvas. pc/global-tile-size)]
-      (frame/set-param! frame preview-canvas-key new-canvas)
-      new-canvas)))
-
-(defn bigger-canvas?
-  "画布大小是否超过了视口大小产生浪费"
-  [frame viewport-w viewport-h]
-  (let [^TiledCanvas c (get-preview-canvas frame)
-        tile-size (.getTileSize c)
-        ;; 预览画布大小，按小了算
-        canvas-w (* (- (.getMaxTileX c) 1) tile-size)
-        canvas-h (* (- (.getMaxTileY c) 1) tile-size)]
-    (or (< viewport-w canvas-w)
-        (< viewport-h canvas-h))))
-
-(defn reset-preview-canvas
-  "重置预览画布,返回新的预览画布"
-  [frame]
-  (when-let [canvas (frame/param frame preview-canvas-key)]
-    (.close canvas))
-  (let [new-canvas (TiledCanvas. pc/global-tile-size)]
-    (frame/set-param! frame preview-canvas-key new-canvas)
-    new-canvas))
 
 ;; ── 画布会话创建 ─────────────────────────────
 (defn- start-canvas-session [^StackPane stack
@@ -74,7 +39,10 @@
         init-canvas-data (pc/canvas-data! canvas-id)
         upload-fn (upload/make-uploader main-canvas)
         overlay-gc (.getGraphicsContext2D overlay-canvas)
-        scheduler (scheduler-impl/make-scheduler)
+        scheduler (scheduler-impl/make-scheduler
+                    {:gl? true
+                     :gl-composite-context-builder
+                     (gl/glfx-composite-context-builder)})
         on-event (fn [ev]
                    (rf/dispatch store/app-id [:canvas/set-cursor-position canvas-id ev])
                    (rf/dispatch store/app-id [:tool/dispatch-event canvas-id ev frame]))
@@ -85,17 +53,13 @@
           (let [viewport (vp/get-viewport frame)
                 viewport-w (.getWidth main-canvas)
                 viewport-h (.getHeight main-canvas)
-                canvas
-                (if (bigger-canvas? frame viewport-w viewport-h)
-                  (reset-preview-canvas frame)
-                  (get-preview-canvas frame))]
+                ]
             ;; ── 提交到 executor——克隆、set-layers!、渲染、合并全在 executor 内部
             (promise/tap
               (executor/submit!
                 render-task-id
                 scheduler
                 layers
-                :canvas           canvas
                 :changes          changes
                 :image-width      width
                 :image-height     height
@@ -103,7 +67,7 @@
                 :viewport         viewport
                 :viewport-w       viewport-w
                 :viewport-h       viewport-h)
-              (fn [_] (upload-fn canvas canvas-data viewport)))))
+              (fn [^TiledCanvas c] (upload-fn c canvas-data viewport)))))
         ;; TODO reframe 事件完成
         force-rerender-canvas! (fn [] (render-canvas-fn
                                         (pc/canvas-data! canvas-id)
@@ -149,7 +113,7 @@
       (input/stop! mouse-input)
       (.removeListener (.widthProperty stack) resize-listener)
       (.removeListener (.heightProperty stack) resize-listener)
-      (cleanup-preview-canvas frame))))
+     )))
 
 ;; ── 组件定义 ───────────────────────────────────
 (def create-canvas

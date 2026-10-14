@@ -78,7 +78,7 @@
                            (reset! running? false)))))]
 
       (fn [canvas {:keys [width height]} ^ViewPort viewport]
-        (let [snapshot (.copy canvas)]
+        (let [snapshot canvas]
           (reset! pending-params [snapshot width height viewport])
           (when (compare-and-set! running? false true)
             (Platform/runLater upload-task)))))))
