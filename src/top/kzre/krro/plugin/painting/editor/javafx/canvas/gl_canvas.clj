@@ -25,7 +25,7 @@
   (:import
     (com.huskerdev.grapl.gl GLContext GLProfile)
     (com.huskerdev.openglfx.canvas GLCanvas GLCanvas$Builder GLCanvas$Builder$ContextDescription$New)
-    (com.huskerdev.openglfx.canvas.events GLRenderEvent)
+    (com.huskerdev.openglfx.canvas.events GLRenderEvent GLReshapeEvent)
     (com.huskerdev.openglfx.lwjgl LWJGLExecutor)
     (java.lang AutoCloseable)
     (java.util Iterator Set)
@@ -49,7 +49,9 @@
   [^GLTexture texture
    ^long layer
    ^TiledCanvas canvas
-   ^long fence])
+   ^long fence
+   ^long viewport-w     ; 渲染时的视口尺寸（逻辑）
+   ^long viewport-h])
 
 (defn- discard-frame!
   "帧未被消费（channel 丢弃 / dispose 清理），GPU 从未使用过 texture。
@@ -156,10 +158,10 @@
             ;          "\n width: " (.getWidth stack)
             ;          "\n height: " (.getHeight stack))
             (.blit blitter
-                   (.texture finfo)
-                   (.layer finfo)
-                   (.getWidth gl-canvas)
-                   (.getHeight gl-canvas)
+                   (:texture finfo)
+                   (:layer finfo)
+                   (:viewport-w finfo)
+                   (:viewport-h finfo)
                    (.-fbo ^GLRenderEvent event)
                    (.-width ^GLRenderEvent event)
                    (.-height ^GLRenderEvent event))
@@ -170,9 +172,12 @@
       gl-canvas
       (reify Consumer
         (accept [_ _]
-          ;; ★ 清理残留帧（discard-frame! 直接释放，无 fence 开销）
+          ;; 清理残留帧（discard-frame! 直接释放，无 fence 开销）
           (ch/clear! frame-chan)
           (.close blitter))))
+
+
+
 
     (let [on-event (fn [ev]
                      (rf/dispatch store/app-id [:canvas/set-cursor-position canvas-id ev])
@@ -213,7 +218,9 @@
                           (->FrameInfo (:texture tex-info)
                                        (:layer tex-info)
                                        (:canvas tex-info)
-                                       (long fence))]
+                                       (long fence)
+                                       (long viewport-w)
+                                       (long viewport-h))]
                       ;; ★ ch/>| 提交到离屏 GL 线程执行
                       ;; 丢弃回调 discard-frame! 里的 glDeleteSync 必须在 GL 线程
                       (.submit gl-exec
@@ -236,11 +243,13 @@
           on-render-canvas
           (fn [cid canvas-data changes]
             (when (= cid canvas-id)
-              (render-canvas-fn canvas-data changes)))
+              (render-canvas-fn canvas-data changes)))]
 
-          resize-listener (reify ChangeListener
-                            (changed [_ _ _ _]
-                              (force-rerender-canvas!)))]
+      (.addOnReshapeEvent
+        gl-canvas
+        (reify Consumer
+          (accept [_ _]
+            (force-rerender-canvas!))))
 
       (hook/add-hook! :krro.painting/render-canvas-hook on-render-canvas)
       (state/set-current-tool! canvas-id :brush)
@@ -250,9 +259,6 @@
       ;; 鼠标事件交给 StackPane 捕获
       (.setMouseTransparent gl-canvas true)
       (.setMouseTransparent overlay-canvas true)
-
-      (.addListener (.widthProperty stack) resize-listener)
-      (.addListener (.heightProperty stack) resize-listener)
 
       (doto stack
         (.setOnZoom (reify EventHandler (handle [_ e] (.consume e))))
@@ -273,8 +279,7 @@
         (store/unreg-canvas-store canvas-id)
         (hook/remove-hook! :krro.painting/render-canvas-hook on-render-canvas)
         (input/stop! mouse-input)
-        (.removeListener (.widthProperty stack) resize-listener)
-        (.removeListener (.heightProperty stack) resize-listener)))))
+        ))))
 
 
 (def create-gl-canvas
