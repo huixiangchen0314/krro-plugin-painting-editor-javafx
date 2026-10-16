@@ -71,14 +71,14 @@
                                       (finally
                                         (try
                                           (.close ^TiledCanvas snapshot)
-                                          (catch Throwable t))
+                                          (catch Throwable t
+                                            (log/error t)))
                                         (reset! running? false)
                                         (when @pending-params
                                           (Platform/runLater upload-task))))))))
                            (reset! running? false)))))]
 
       (fn [canvas {:keys [width height]} ^ViewPort viewport]
-        (let [snapshot canvas]
-          (reset! pending-params [snapshot width height viewport])
-          (when (compare-and-set! running? false true)
-            (Platform/runLater upload-task)))))))
+        (reset! pending-params [canvas width height viewport])
+        (when (compare-and-set! running? false true)
+          (Platform/runLater upload-task))))))
