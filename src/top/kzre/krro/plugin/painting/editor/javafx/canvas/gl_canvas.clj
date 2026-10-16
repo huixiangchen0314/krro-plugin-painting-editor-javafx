@@ -1,12 +1,12 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.canvas.gl-canvas
   (:require
+    [taoensso.timbre :as log]
     [top.kzre.krro.canvas.vector.core]
     [top.kzre.krro.core.frame :as frame]
     [top.kzre.krro.core.hook :as hook]
     [top.kzre.krro.core.reframe.core :as rf]
     [top.kzre.krro.core.util.channel :as ch]
     [top.kzre.krro.core.util.promise :as promise :refer [plet>]]
-    [top.kzre.krro.core.util.re-export :refer [re-export]]
     [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
     [top.kzre.krro.plugin.painting.core.core]
     [top.kzre.krro.plugin.painting.core.input :as input]
@@ -37,9 +37,8 @@
     (javafx.scene.canvas Canvas)
     (javafx.scene.layout StackPane)
     (org.lwjgl.opengl GL32)
-    (top.kzre.krro.canvas.gl.composite TextureFboBlitter)
     (top.kzre.krro.canvas.gl.resource GLTexture)
-    (top.kzre.krro.canvas.gl.tile AbstractGLTiledTexture$GLTextureTileData)
+    (top.kzre.krro.canvas.gl.tile AbstractGLTiledTexture$GLTextureTileData TiledTextureBlitter)
     (top.kzre.krro.core.util SerialExecutor)
     (top.kzre.krro.plugin.painting.editor.javafx.glfx GLRuntime)
     (top.kzre.krro.util.tile Tile TiledCanvas)))
@@ -126,7 +125,7 @@
         overlay-gc       (.getGraphicsContext2D overlay-canvas)
         ^GLRuntime runtime (GLRuntime/offscreen)
         ^SerialExecutor gl-exec (.getExecutor runtime)
-        blitter (TextureFboBlitter.)
+        blitter (TiledTextureBlitter. pc/global-tile-size)
 
         ;; ★ 帧管线：capacity=2，满了自动丢最旧帧
         ;; onDispose 用 discard-frame! —— 丢弃的帧 GPU 未使用，直接释放
@@ -153,9 +152,14 @@
               (when (not= 0 fence)
                 (GL32/glWaitSync fence 0 GL32/GL_TIMEOUT_IGNORED)))
             ;; 2. blit（GPU 读源 texture）
+            ;(log/info "stack size: "
+            ;          "\n width: " (.getWidth stack)
+            ;          "\n height: " (.getHeight stack))
             (.blit blitter
                    (.texture finfo)
                    (.layer finfo)
+                   (.getWidth gl-canvas)
+                   (.getHeight gl-canvas)
                    (.-fbo ^GLRenderEvent event)
                    (.-width ^GLRenderEvent event)
                    (.-height ^GLRenderEvent event))
@@ -178,7 +182,7 @@
           (fn [{:keys [layers width height current-layer-id] :as _canvas-data}
                changes]
             (let [viewport   (vp/get-viewport frame)
-                  viewport-w (.getWidth gl-canvas)
+                  viewport-w (.getWidth  gl-canvas)
                   viewport-h (.getHeight gl-canvas)]
               (plet>
                 [canvas
@@ -277,7 +281,7 @@
   (make-component [:krro.painting/canvas-id]
                   (fn []
                     (let [stack     (StackPane.)
-                          gl-canvas (make-gl-canvas)
+                          ^GLCanvas gl-canvas (make-gl-canvas)
                           overlay   (Canvas.)]
                       (.setId gl-canvas "painting-gl-canvas")
                       (.setId overlay   "painting-overlay")
