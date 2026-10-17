@@ -1,0 +1,135 @@
+(ns top.kzre.krro.plugin.painting.editor.javafx.canvas.painting-canvas
+  "画布组件的业务集成。连接 canvas-kernal 协议与 painting 业务逻辑——
+   把图层数据、视口、store、hook 接到 kernal 的输入接口上。
+
+   kernal-supplier 决定实际渲染后端（GL 或软件），本命名空间不感知。
+   supplier 签名：(fn [opts] -> {:container StackPane :kernal ICanvasKernal})
+   opts 至少包含 :on-event。
+
+   生命周期：
+     kernal + container —— 组件级。create-fn 创建一次，dispose-fn 释放。
+     canvas-id / frame / hook / store —— props 级。init-fn 注册，
+     cleanup 释放。canvas-id 变化时旧会话先清理，再以新 props 重建。"
+  (:require
+    [top.kzre.krro.canvas.vector.core]
+    [top.kzre.krro.core.frame :as frame]
+    [top.kzre.krro.core.hook :as hook]
+    [top.kzre.krro.core.reframe.core :as rf]
+    [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
+    [top.kzre.krro.plugin.painting.core.core]
+    [top.kzre.krro.plugin.painting.core.ops.layer :as layer]
+    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+    [top.kzre.krro.plugin.painting.core.project.core]
+    [top.kzre.krro.plugin.painting.core.state :as state]
+    [top.kzre.krro.plugin.painting.core.store :as store]
+    [top.kzre.krro.plugin.painting.core.viewport :as vp]
+    [top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol :as proto]
+    [top.kzre.krro.plugin.painting.editor.javafx.graph :as graph]
+    [top.kzre.krro.ui.javafx.core :refer [make-component]])
+  (:import
+    (javafx.scene.layout StackPane)))
+
+;; ── 挂在 container.getProperties() 上的键 ──
+
+(def ^:private kernal-key  ::kernal)
+(def ^:private ctx-ref-key ::ctx-ref)
+
+;; ═══════════════════════════════════════════════
+;; 业务集成
+;; ═══════════════════════════════════════════════
+
+(defn- render!
+  "把 canvas-data 推给 kernal，触发一次重绘。"
+  [kernal frame {:keys [layers width height current-layer-id]} changes]
+  (let [viewport (vp/get-viewport frame)]
+    (proto/set-layers!           kernal layers)
+    (proto/set-current-layer-id! kernal current-layer-id)
+    (proto/set-image-size!       kernal width height)
+    (proto/set-viewport!         kernal viewport)
+    (proto/repaint               kernal changes)))
+
+(defn- start-session
+  "启动一次业务会话。kernal 由 create-fn 提供，本方法只绑定业务侧资源。
+
+   返回清理函数——释放本次会话注册的 hook、store、frame param。
+   不涉及 kernal——kernal 的生命周期由 dispose-fn 管理。"
+  [^StackPane container frame canvas-id]
+  (let [kernal  (.get (.getProperties container) kernal-key)
+        ctx-ref (.get (.getProperties container) ctx-ref-key)
+
+        on-render-canvas
+        (fn [cid canvas-data changes]
+          (when (= cid canvas-id)
+            (render! kernal frame canvas-data changes)))]
+
+    ;; 更新 on-event 的动态绑定——kernal 的 on-event 闭包从这里读
+    (reset! ctx-ref {:canvas-id canvas-id :frame frame})
+
+    (store/reg-canvas-store canvas-id)
+    (hook/add-hook! :krro.painting/render-canvas-hook on-render-canvas)
+    (state/set-current-tool! canvas-id :brush)
+    (layer/auto-select-layer! canvas-id)
+
+    (frame/set-param! frame :krro.painting/overlay-graph-context
+                      (graph/make-javafx-graphics (proto/overlay-gc kernal)))
+
+    ;; 首次渲染
+    (render! kernal frame (pc/canvas-data! canvas-id) [(viewport/refreshed)])
+
+    ;; 清理函数
+    (fn []
+      (hook/remove-hook! :krro.painting/render-canvas-hook on-render-canvas)
+      (store/unreg-canvas-store canvas-id)
+      (frame/set-param! frame :krro.painting/overlay-graph-context nil)
+      (reset! ctx-ref {:canvas-id nil :frame nil}))))
+
+;; ═══════════════════════════════════════════════
+;; 组件工厂
+;; ═══════════════════════════════════════════════
+
+(defn make-factory
+  "构造画布组件工厂。
+
+   kernal-supplier —— 决定渲染后端。签名 (fn [opts] -> {:container :kernal})。
+     opts 至少包含 :on-event。
+     返回的 container 会被用作组件根节点。
+
+   组件 props：
+     :krro.painting/canvas-id —— 画布标识
+
+   canvas-id 变化时，框架先调上次 cleanup 释放会话级资源，再以新
+   props 重新调 init-fn——kernal 保持不变。"
+  [kernal-supplier]
+  (make-component
+    [:krro.painting/canvas-id]
+
+    ;; ── create-fn：组件级资源，只创建一次 ──
+    (fn []
+      (let [ctx-ref  (atom {:canvas-id nil :frame nil})
+            on-event (fn [ev]
+                       (let [{:keys [canvas-id frame]} @ctx-ref]
+                         (when canvas-id
+                           (rf/dispatch store/app-id [:canvas/set-cursor-position canvas-id ev])
+                           (rf/dispatch store/app-id [:tool/dispatch-event canvas-id ev frame]))))
+
+            {:keys [^StackPane container kernal]}
+            (kernal-supplier {:on-event on-event})]
+
+        (.put (.getProperties container) kernal-key  kernal)
+        (.put (.getProperties container) ctx-ref-key ctx-ref)
+        container))
+
+    ;; ── init-fn：props 级资源，每次 props 变化重建 ──
+    (fn [^StackPane container _old-props new-props frame]
+      (let [canvas-id (:krro.painting/canvas-id new-props)]
+        (if (nil? canvas-id)
+          (fn [])
+          (start-session container frame canvas-id))))
+
+    ;; ── dispose-fn：卸载时释放组件级资源 ──
+    :dispose-fn
+    (fn [^StackPane container]
+      (when-let [kernal (.get (.getProperties container) kernal-key)]
+        (.remove (.getProperties container) kernal-key)
+        (.remove (.getProperties container) ctx-ref-key)
+        (proto/close kernal)))))

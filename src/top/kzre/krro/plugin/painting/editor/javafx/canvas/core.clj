@@ -1,17 +1,14 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.canvas.core
   (:require
-    [top.kzre.krro.canvas.vector.core]
-    [top.kzre.krro.core.util.re-export :refer [re-export]]
-    [top.kzre.krro.plugin.painting.core.core]
-    [top.kzre.krro.plugin.painting.core.project.core]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.dl-canvas]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.gl-canvas]))
+    [top.kzre.krro.plugin.painting.editor.javafx.canvas.dl-canvas-kernal :as dl-kernal]
+    [top.kzre.krro.plugin.painting.editor.javafx.canvas.gl-canvas-kernal :as gl-kernal]
+    [top.kzre.krro.plugin.painting.editor.javafx.canvas.painting-canvas :as painting-canvas])
+  (:import (top.kzre.krro.plugin.painting.editor.javafx.glfx GLRuntime)))
 
-(re-export
-  [top.kzre.krro.plugin.painting.editor.javafx.canvas.dl-canvas
-   :refer [create-canvas]])
+(def create-canvas
+  (painting-canvas/make-factory dl-kernal/build-kernal))
 
-
-(re-export
-  [top.kzre.krro.plugin.painting.editor.javafx.canvas.gl-canvas
-   :refer [create-gl-canvas]])
+(def create-gl-canvas
+  (painting-canvas/make-factory
+    (fn [opts]
+      (gl-kernal/build-kernal (GLRuntime/offscreen) opts))))

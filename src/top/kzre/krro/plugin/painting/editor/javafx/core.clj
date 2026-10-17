@@ -21,7 +21,7 @@
        {:id      :krro.painting/canvas-tag
         :type    :krro.ui.javafx/tag
         :tag     :krro.painting/canvas
-        :factory canvas/create-gl-canvas})
+        :factory canvas/create-canvas})
      (krro/reg-plugin!
        {:id      :krro.painting/add-layer-popup-tag
         :type    :krro.ui.javafx/tag
