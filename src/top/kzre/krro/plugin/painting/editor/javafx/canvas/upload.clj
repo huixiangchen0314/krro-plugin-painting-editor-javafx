@@ -13,6 +13,7 @@
    (top.kzre.krro.util.tile TiledCanvas)))
 (Upload/setCheckerGrid pc/global-tile-size)
 
+;; TODO 用 heart-beat-flag 优化 debounce
 (defn make-uploader [^Canvas fx-canvas]
   (let [^PixelWriter pixel-writer (.getPixelWriter (.getGraphicsContext2D fx-canvas))
         pending-params (atom nil)

@@ -96,7 +96,7 @@ public final class GLRuntime implements AutoCloseable {
         Object cached = resources.get(key);
         if (cached != null) return CompletableFuture.completedFuture((T) cached);
 
-        return ExecutorUtils.submitIfThread(executor, () -> {
+        return ExecutorUtils.runOnThread(executor, () -> {
             Object hit = resources.get(key);
             if (hit != null) return (T) hit;
             T created = factory.call();
@@ -129,7 +129,7 @@ public final class GLRuntime implements AutoCloseable {
         if (!closed.compareAndSet(false, true)) {
             throw new IllegalStateException("GLRuntime already closed");
         }
-        ExecutorUtils.submitIfThread(executor, () -> {
+        ExecutorUtils.runOnThread(executor, () -> {
             for (Runnable hook : closeHooks) {
                 try { hook.run(); } catch (Throwable ignored) { }
             }

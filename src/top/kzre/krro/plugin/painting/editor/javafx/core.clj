@@ -17,11 +17,12 @@
    :mount
    (fn
      []
+     ;; TODO cpu 合成，和 GPU 合成打两个标签
      (krro/reg-plugin!
        {:id      :krro.painting/canvas-tag
         :type    :krro.ui.javafx/tag
         :tag     :krro.painting/canvas
-        :factory canvas/create-canvas})
+        :factory canvas/create-gl-canvas})
      (krro/reg-plugin!
        {:id      :krro.painting/add-layer-popup-tag
         :type    :krro.ui.javafx/tag

@@ -1,7 +1,7 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.canvas.gl-canvas-kernal
   (:require
     [taoensso.timbre :as log]
-    [top.kzre.krro.core.util.channel :refer [chan  <| >| close! clear!]]
+    [top.kzre.krro.core.util.channel :refer [<| >| chan close!]]
     [top.kzre.krro.core.util.promise :as promise :refer [plet>]]
     [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
     [top.kzre.krro.plugin.painting.core.input :as input]
@@ -9,26 +9,21 @@
     [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
     [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
     [top.kzre.krro.plugin.painting.editor.javafx.canvas.gl :as gl]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.util :as util]
-    [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol :refer [ICanvasKernal]])
+    [top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol :refer [ICanvasKernal]]
+    [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer])
   (:import
-   (com.huskerdev.grapl.gl GLContext GLProfile)
-   (com.huskerdev.openglfx.canvas GLCanvas GLCanvas$Builder GLCanvas$Builder$ContextDescription$New)
-   (com.huskerdev.openglfx.canvas.events GLRenderEvent GLReshapeEvent)
-   (com.huskerdev.openglfx.lwjgl LWJGLExecutor)
-   (java.lang AutoCloseable)
-   (java.util.concurrent Callable)
-   (java.util.function Consumer)
-   (javafx.application Platform)
-   (javafx.scene.canvas Canvas)
-   (javafx.scene.layout StackPane)
-   (org.lwjgl.opengl GL32)
-   (top.kzre.krro.canvas.gl.tile TiledTextureBlitter)
-   (top.kzre.krro.core.util SerialExecutor)
-   (top.kzre.krro.plugin.painting.editor.javafx.glfx FrameDraw GLRuntime)))
-
-
+    (com.huskerdev.grapl.gl GLContext GLProfile)
+    (com.huskerdev.openglfx.canvas GLCanvas GLCanvas$Builder GLCanvas$Builder$ContextDescription$New)
+    (com.huskerdev.openglfx.canvas.events GLRenderEvent)
+    (com.huskerdev.openglfx.lwjgl LWJGLExecutor)
+    (java.lang AutoCloseable)
+    (java.util.concurrent Callable)
+    (java.util.function Consumer)
+    (javafx.application Platform)
+    (javafx.scene.canvas Canvas)
+    (javafx.scene.layout StackPane)
+    (top.kzre.krro.core.util SerialExecutor)
+    (top.kzre.krro.plugin.painting.editor.javafx.glfx GLRuntime GLSyncTiledTextureBlitter)))
 
 ;; ═══════════════════════════════════════════════
 ;; 状态
@@ -47,7 +42,7 @@
 ;; ═══════════════════════════════════════════════
 
 (defn- request-render!
-  [{:keys [frame-chan
+  [{:keys [sync-blitter
            repaint-chan
            gl-runtime
            gl-canvas
@@ -86,20 +81,12 @@
            gl-exec
            ^Callable
            (fn []
-             (GL32/glFlush)
-             (let [fence (long (GL32/glFenceSync
-                                 GL32/GL_SYNC_GPU_COMMANDS_COMPLETE 0))]
-               (when (and canvas (not (.isClosed canvas)))
-                 (when-let [tex-info (util/canvas->tex canvas)]
-                   (let [frame
-                         (FrameDraw.
-                           (:canvas tex-info)
-                           (:texture tex-info)
-                           (:layer tex-info)
-                           (long viewport-w)
-                           (long viewport-h)
-                           fence)]
-                     (>| frame-chan frame))))))))]
+             ;; 帧提交 + fence 全部封装在 send 内部；canvas 为空或已关闭时跳过
+             (when (and canvas (not (.isClosed canvas)))
+               (.send ^GLSyncTiledTextureBlitter sync-blitter
+                      canvas
+                      (double viewport-w)
+                      (double viewport-h))))))]
       (>| repaint-chan :dirty)
       (Platform/runLater
         (reify Runnable
@@ -117,12 +104,11 @@
    ^GLCanvas gl-canvas
    ^Canvas overlay-canvas
    ^StackPane fx-container
-   ^TiledTextureBlitter blitter
+   ^GLSyncTiledTextureBlitter sync-blitter
    ;; 合成相关
    ^GLRuntime gl-runtime
    scheduler
    render-task-id
-   frame-chan
    repaint-chan
    ;; 业务相关
    on-event
@@ -155,11 +141,19 @@
   (close [_]
     (let [[old _] (swap-vals! state-atom assoc :closed true)]
       (when-not (:closed old)
-        (doseq [step [(when mouse-input #(input/stop! mouse-input))
-                      #(clear! frame-chan)
-                      #(close! frame-chan)
-                      #(close! repaint-chan)
+        (doseq [step [
+                      ;; 立刻关生产者，不再产出新数据
+                      (when mouse-input #(input/stop! mouse-input))
                       (when scheduler #(.close ^AutoCloseable scheduler))
+                      ;; 消费者按消费流逆序关闭 repaint->blitter
+                      #(close! repaint-chan)
+                      (when sync-blitter
+                        #(try
+                           ;;
+                           (.close ^GLSyncTiledTextureBlitter sync-blitter)
+                           (catch Throwable t
+                             (log/warn t "sync-blitter close failed"))))
+                      ;; 最后关上下文
                       (when gl-canvas #(.dispose ^GLCanvas gl-canvas))]]
           (when step
             (try
@@ -215,15 +209,14 @@
         (build-layout gl-runtime)
 
         render-task-id (str "gl-canvas-kernal-" (random-uuid))
-        blitter        (TiledTextureBlitter. pc/global-tile-size)
+        sync-blitter   (GLSyncTiledTextureBlitter/create pc/global-tile-size)
         mouse-input    (pointer/make-pointer-input container on-event)
 
         scheduler      (scheduler-impl/make-scheduler
                          {:backend :gl
-                          :gl-composite-context-builder
-                          (gl/glfx-composite-context-builder)})
+                          :gl-composite-context-promise
+                          (gl/glfx-composite-context-promise)})
 
-        frame-chan     (chan 2 (fn [^FrameDraw fd] (.discard fd)))
         repaint-chan   (chan 1)
 
         kernal
@@ -231,11 +224,10 @@
           {:gl-canvas      gl-canvas
            :overlay-canvas overlay-canvas
            :fx-container   container
-           :blitter        blitter
+           :sync-blitter   sync-blitter
            :gl-runtime     gl-runtime
            :scheduler      scheduler
            :render-task-id render-task-id
-           :frame-chan     frame-chan
            :repaint-chan   repaint-chan
            :on-event       on-event
            :mouse-input    mouse-input
@@ -246,8 +238,7 @@
       gl-canvas
       (reify Consumer
         (accept [_ event]
-          (when-let [^FrameDraw fd (<| frame-chan)]
-            (.consume fd blitter ^GLRenderEvent event)))))
+          (.poll ^GLSyncTiledTextureBlitter sync-blitter ^GLRenderEvent event))))
 
     ;; ── onReshapeEvent：surface 尺寸变化，触发一次重渲染 ──
     (.addOnReshapeEvent
@@ -255,14 +246,6 @@
       (reify Consumer
         (accept [_ _]
           (request-render! kernal [(viewport/refreshed)]))))
-
-    ;; ── onDisposeEvent：清理残留帧 + 关 blitter ──
-    (.addOnDisposeEvent
-      gl-canvas
-      (reify Consumer
-        (accept [_ _]
-          (close! frame-chan)
-          (.close blitter))))
 
     (input/start! mouse-input)
 

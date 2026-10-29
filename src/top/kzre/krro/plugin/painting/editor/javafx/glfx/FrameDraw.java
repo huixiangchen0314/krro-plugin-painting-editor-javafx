@@ -2,6 +2,7 @@ package top.kzre.krro.plugin.painting.editor.javafx.glfx;
 
 import com.huskerdev.openglfx.canvas.events.GLRenderEvent;
 import top.kzre.krro.canvas.gl.resource.GLTexture;
+import top.kzre.krro.canvas.gl.tile.GLTextureLayerCanvas;
 import top.kzre.krro.canvas.gl.tile.TiledTextureBlitter;
 import top.kzre.krro.canvas.gl.util.ResourceUtils;
 import top.kzre.krro.util.tile.TiledCanvas;
@@ -43,6 +44,7 @@ public final class FrameDraw implements AutoCloseable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private final long fence;
+    private final GLTextureLayerCanvas texCanvas;
     private final GLTexture viewTex;
     private final long layer;
     private final TiledCanvas canvas;
@@ -50,23 +52,21 @@ public final class FrameDraw implements AutoCloseable {
     private final double viewHeight;
 
     /**
-     * @param canvas     本帧的离屏画布——持有 texture 的引用
-     * @param viewTex    视口纹理，由 canvas 内的 tile 引用
-     * @param layer      viewTex 的层索引
      * @param viewWidth  渲染时的视口宽（逻辑像素），用于 blit 源区域
      * @param viewHeight 渲染时的视口高（逻辑像素）
      * @param fence      离屏侧 GPU 写入完成的同步点；0 表示无 fence
      * @throws IllegalArgumentException canvas 或 viewTex 为 null
      */
-    public FrameDraw(TiledCanvas canvas, GLTexture viewTex, long layer,
+    public FrameDraw(GLTextureLayerCanvas texCanvas,
                      double viewWidth, double viewHeight,
                      long fence) {
-        if (canvas == null) throw new IllegalArgumentException("canvas can't be null.");
-        if (viewTex == null) throw new IllegalArgumentException("view tex can't be null.");
+        if (texCanvas == null) throw new IllegalArgumentException("texCanvas can't be null.");
+
         this.fence = fence;
-        this.viewTex = viewTex;
-        this.layer = layer;
-        this.canvas = canvas;
+        this.texCanvas = texCanvas;
+        this.viewTex = texCanvas.getTexture();
+        layer = texCanvas.getLayer();
+        canvas = texCanvas.getCanvas();
         this.viewWidth = viewWidth;
         this.viewHeight = viewHeight;
     }

@@ -102,9 +102,7 @@
   (repaint [this changes]
     (request-render! this changes))
 
-  (close [{:keys [^StackPane fx-container mouse-input resize-listener
-                  scheduler state-atom]
-           :as _kernal}]
+  (close [_]
     (let [[old _] (swap-vals! state-atom assoc :closed true)]
       (when-not (:closed old)
         (doseq [step [(when mouse-input

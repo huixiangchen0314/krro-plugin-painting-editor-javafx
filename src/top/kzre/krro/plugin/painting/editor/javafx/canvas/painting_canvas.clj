@@ -30,9 +30,8 @@
     (javafx.scene.layout StackPane)))
 
 ;; ── 挂在 container.getProperties() 上的键 ──
-
-(def ^:private kernal-key  ::kernal)
-(def ^:private ctx-ref-key ::ctx-ref)
+(def ^:private kernal-fx-prop-key  ::kernal)
+(def ^:private state-atom-fx-prop-key ::ctx-ref)
 
 ;; ═══════════════════════════════════════════════
 ;; 业务集成
@@ -54,8 +53,8 @@
    返回清理函数——释放本次会话注册的 hook、store、frame param。
    不涉及 kernal——kernal 的生命周期由 dispose-fn 管理。"
   [^StackPane container frame canvas-id]
-  (let [kernal  (.get (.getProperties container) kernal-key)
-        ctx-ref (.get (.getProperties container) ctx-ref-key)
+  (let [kernal  (.get (.getProperties container) kernal-fx-prop-key)
+        ctx-ref (.get (.getProperties container) state-atom-fx-prop-key)
 
         on-render-canvas
         (fn [cid canvas-data changes]
@@ -86,7 +85,6 @@
 ;; ═══════════════════════════════════════════════
 ;; 组件工厂
 ;; ═══════════════════════════════════════════════
-
 (defn make-factory
   "构造画布组件工厂。
 
@@ -105,9 +103,11 @@
 
     ;; ── create-fn：组件级资源，只创建一次 ──
     (fn []
-      (let [ctx-ref  (atom {:canvas-id nil :frame nil})
+      (let [state-atom  (atom
+                          {:canvas-id nil
+                           :frame nil})
             on-event (fn [ev]
-                       (let [{:keys [canvas-id frame]} @ctx-ref]
+                       (let [{:keys [canvas-id frame]} @state-atom]
                          (when canvas-id
                            (rf/dispatch store/app-id [:canvas/set-cursor-position canvas-id ev])
                            (rf/dispatch store/app-id [:tool/dispatch-event canvas-id ev frame]))))
@@ -115,8 +115,8 @@
             {:keys [^StackPane container kernal]}
             (kernal-supplier {:on-event on-event})]
 
-        (.put (.getProperties container) kernal-key  kernal)
-        (.put (.getProperties container) ctx-ref-key ctx-ref)
+        (.put (.getProperties container) kernal-fx-prop-key  kernal)
+        (.put (.getProperties container) state-atom-fx-prop-key state-atom)
         container))
 
     ;; ── init-fn：props 级资源，每次 props 变化重建 ──
@@ -129,7 +129,7 @@
     ;; ── dispose-fn：卸载时释放组件级资源 ──
     :dispose-fn
     (fn [^StackPane container]
-      (when-let [kernal (.get (.getProperties container) kernal-key)]
-        (.remove (.getProperties container) kernal-key)
-        (.remove (.getProperties container) ctx-ref-key)
+      (when-let [kernal (.get (.getProperties container) kernal-fx-prop-key)]
+        (.remove (.getProperties container) kernal-fx-prop-key)
+        (.remove (.getProperties container) state-atom-fx-prop-key)
         (proto/close kernal)))))
