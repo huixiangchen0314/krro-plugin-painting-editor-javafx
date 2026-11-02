@@ -26,7 +26,7 @@
                                 fx-pane-min-x  (.getMinX fx-pane-bounds)
                                 fx-pane-min-y  (.getMinY fx-pane-bounds)
 
-                                ;; 2. 如果笔驱动返回的已经是屏幕绝对坐标，直接相减
+                                ;; 2. 笔驱动返回的是屏幕绝对坐标，直接相减
                                 cx (- sx fx-pane-min-x)
                                 cy (- sy fx-pane-min-y)
                                 pressure (.getPressure s)

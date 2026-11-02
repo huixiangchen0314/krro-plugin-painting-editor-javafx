@@ -8,17 +8,16 @@
 (defn- javafx-button->keyword
   [^MouseButton btn]
   (cond
-    (= btn MouseButton/PRIMARY)  :left
+    (= btn MouseButton/PRIMARY)   :left
     (= btn MouseButton/SECONDARY) :right
-    (= btn MouseButton/MIDDLE)   :middle
+    (= btn MouseButton/MIDDLE)    :middle
     :else nil))
 
 (defn- event->modifiers
   [e]
   {:shift (.isShiftDown e)
-   :ctrl (.isControlDown e)
-   :alt (.isAltDown e)})
-
+   :ctrl  (.isControlDown e)
+   :alt   (.isAltDown e)})
 
 (defrecord PointerBuffered [pressed?
                             fx-pane
@@ -31,41 +30,43 @@
                        (reset! pressed? true)
                        (let [btn (javafx-button->keyword (.getButton e))]
                          (reset! current-button btn)
-
                          (on-event
-                                (event/make-pointer-event :press (.getX e) (.getY e)
-                                                          :mouse-button btn
-                                                          :modifiers (event->modifiers e))))))
+                           (event/make-pointer-event :press (.getX e) (.getY e)
+                                                     :mouse-button btn
+                                                     :modifiers (event->modifiers e))))))
           on-drag  (reify EventHandler
                      (handle [_ e]
                        (when @pressed?
                          (on-event
-                                (event/make-pointer-event :drag (.getX e) (.getY e)
-                                                          :mouse-button @current-button
-                                                          :modifiers (event->modifiers e))))))
-          on-move (reify EventHandler
-                    (handle [_ e]
-                      (on-event
-                             (event/make-pointer-event :move (.getX e) (.getY e)
-                                                       :modifiers (event->modifiers e)))))
+                           (event/make-pointer-event :drag (.getX e) (.getY e)
+                                                     :mouse-button @current-button
+                                                     :modifiers (event->modifiers e))))))
+          on-move  (reify EventHandler
+                     (handle [_ e]
+                       (on-event
+                         (event/make-pointer-event :move (.getX e) (.getY e)
+                                                   :modifiers (event->modifiers e)))))
           on-release (reify EventHandler
                        (handle [_ e]
                          (when @pressed?
                            (let [btn (javafx-button->keyword (.getButton e))]
                              (on-event
-                                    (event/make-pointer-event :release (.getX e) (.getY e)
-                                                              :mouse-button btn
-                                                              :modifiers (event->modifiers e)))
+                               (event/make-pointer-event :release (.getX e) (.getY e)
+                                                         :mouse-button btn
+                                                         :modifiers (event->modifiers e)))
                              (reset! pressed? false)
                              (reset! current-button nil)))))
           on-scroll (reify EventHandler
                       (handle [_ e]
                         (when-not (.isDirect e)
+                          ;; scroll 不是按钮事件，不传 :mouse-button。
+                          ;; 构造器对 :scroll 不写 :mouse-button，dispatch 按 type 优先处理。
                           (on-event
-                                 (event/make-pointer-event :scroll (.getX e) (.getY e)
-                                                           :delta-x (.getDeltaX e) :delta-y (.getDeltaY e)
-                                                           :mouse-button :middle
-                                                           :modifiers (event->modifiers e))))))]
+                            (event/make-pointer-event :scroll (.getX e) (.getY e)
+                                                      ;; javafx 每格发送一次滚轮事件，我们取单格为数值1，保留符号
+                                                      :delta-x (Math/signum ^double (.getDeltaX e))
+                                                      :delta-y (Math/signum ^double (.getDeltaY e))
+                                                      :modifiers (event->modifiers e))))))]
       (.setOnMousePressed fx-pane on-press)
       (.setOnMouseDragged fx-pane on-drag)
       (.setOnMouseReleased fx-pane on-release)
