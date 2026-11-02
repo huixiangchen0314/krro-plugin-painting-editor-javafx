@@ -3,14 +3,14 @@
    笔线程将标准化事件追加到 buffer 原子，渲染线程每帧消费。"
   (:require
     [top.kzre.krro.plugin.painting.core.event :as event]
-    [top.kzre.krro.plugin.painting.core.input :as input])
+    [top.kzre.krro.plugin.painting.editor.javafx.input.protocol :as input])
   (:import
     (top.kzre.pen4j.api PenEvent PenListener PenState)
     (top.kzre.pen4j.core PenContext)
     (top.kzre.pen4j.windows.rawinput RawInputDriver)))
 
 
-(defrecord PenBuffered [hwnd node on-event pressed? pen-context]
+(defrecord PenBuffered [hwnd fx-pane on-event pressed? pen-context]
   input/IInputSource
   (start! [_]
     (try
@@ -22,13 +22,13 @@
                           (let [^PenState s (.getState e)
                                  sx (.getX s)
                                  sy (.getY s)
-                                node-bounds (.localToScreen node (.getBoundsInLocal node))
-                                node-min-x  (.getMinX node-bounds)
-                                node-min-y  (.getMinY node-bounds)
+                                fx-pane-bounds (.localToScreen fx-pane (.getBoundsInLocal fx-pane))
+                                fx-pane-min-x  (.getMinX fx-pane-bounds)
+                                fx-pane-min-y  (.getMinY fx-pane-bounds)
 
                                 ;; 2. 如果笔驱动返回的已经是屏幕绝对坐标，直接相减
-                                cx (- sx node-min-x)
-                                cy (- sy node-min-y)
+                                cx (- sx fx-pane-min-x)
+                                cy (- sy fx-pane-min-y)
                                 pressure (.getPressure s)
                                 tilt-x   (.getTiltX s)
                                 tilt-y   (.getTiltY s)
@@ -66,10 +66,10 @@
 (defn make-pen-input
   "创建缓冲式数位笔输入源。事件将追加到 on-event 原子中，由外部轮询消费。
    hwnd   : 窗口句柄
-   node : 监听事件的 区域节点
+   fx-pane : 监听事件的 区域节点
    on-event : 原子，用于存放累积的笔事件向量"
-  [node on-event]
-  (map->PenBuffered {:node node
+  [fx-pane on-event]
+  (map->PenBuffered {:fx-pane fx-pane
                      :on-event on-event
                      :pressed? (atom false)
                      :pen-context (atom nil)}))

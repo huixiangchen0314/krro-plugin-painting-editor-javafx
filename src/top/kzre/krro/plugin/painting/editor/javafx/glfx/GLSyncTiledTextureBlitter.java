@@ -18,7 +18,7 @@ public final class GLSyncTiledTextureBlitter implements AutoCloseable {
         this.blitter = blitter;
         this.frameChan = new BufferedChannel<>(2, FrameDraw::discard);
     }
-    
+
     public static GLSyncTiledTextureBlitter create(int tileSize) {
         TiledTextureBlitter tiledTextureBlitter = new TiledTextureBlitter(tileSize);
         return new GLSyncTiledTextureBlitter(tiledTextureBlitter);
@@ -35,7 +35,9 @@ public final class GLSyncTiledTextureBlitter implements AutoCloseable {
         if (canvas == null) {
             throw new NullPointerException("canvas can't be null");
         }
-
+        if (canvas.getTiles().isEmpty()) {
+            return;
+        }
         glFlush();
         long fence = GL32.glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
         GLTextureLayerCanvas texCanvas = GLTextureLayerCanvas.fromCanvas(canvas);

@@ -1,17 +1,17 @@
-(ns top.kzre.krro.plugin.painting.editor.javafx.canvas.dl-canvas-kernal
+(ns top.kzre.krro.plugin.painting.editor.javafx.canvas.dl-canvas-kernel
   "基于 JavaFX Canvas 的画布会话内核。走软件合成路径——合成结果
    通过 Upload 采样到 JavaFX Canvas 的像素缓冲。无 GL 依赖。
 
-   与 gl-canvas-kernal 实现同一协议——外部通过 ICanvasKernal 的
+   与 gl-canvas-kernel 实现同一协议——外部通过 ICanvasKernal 的
    方法操作，不感知底层是 GL 还是软件。"
   (:require
     [taoensso.timbre :as log]
     [top.kzre.krro.core.util.promise :as promise]
     [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
-    [top.kzre.krro.plugin.painting.core.input :as input]
+    [top.kzre.krro.plugin.painting.editor.javafx.input.protocol :as input]
     [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
     [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol :refer [ICanvasKernal]]
+    [top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol :refer [ICanvasKernel]]
     [top.kzre.krro.plugin.painting.editor.javafx.canvas.upload :as upload]
     [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer])
   (:import
@@ -39,7 +39,7 @@
 
 (defn- request-render!
   [{:keys [main-canvas scheduler render-task-id upload-fn state-atom]
-    :as _kernal} changes]
+    :as _kernel} changes]
   (let [{:keys [layers current-layer-id image-width image-height viewport]}
         @state-atom
         viewport-w (.getWidth  main-canvas)
@@ -80,7 +80,7 @@
    ;; 状态
    state-atom]
 
-  ICanvasKernal
+  ICanvasKernel
 
   (set-layers! [_ layers]
     (swap! state-atom assoc :layers layers))
@@ -117,7 +117,7 @@
             (try
               (step)
               (catch Throwable t
-                (log/error t "dl-canvas kernal close step failed")))))))))
+                (log/error t "dl-canvas kernel close step failed")))))))))
 
 ;; ═══════════════════════════════════════════════
 ;; 布局
@@ -151,16 +151,16 @@
 ;; 构造
 ;; ═══════════════════════════════════════════════
 
-(defn build-kernal
+(defn build-kernel
   "构造软件合成画布会话内核。
 
    opts —— {:on-event (fn [ev] ...)}，输入事件回调。
 
-   返回 {:container StackPane, :kernal DlCanvasKernalImpl}。"
+   返回 {:container StackPane, :kernel DlCanvasKernalImpl}。"
   [{:keys [on-event]}]
   (let [{:keys [container main-canvas overlay-canvas]} (build-layout)
 
-        render-task-id  (str "dl-canvas-kernal-" (random-uuid))
+        render-task-id  (str "dl-canvas-kernel-" (random-uuid))
         upload-fn       (upload/make-uploader main-canvas)
         mouse-input     (pointer/make-pointer-input container on-event)
 
@@ -168,13 +168,13 @@
         scheduler       (scheduler-impl/make-scheduler
                           {:backend :default})
 
-        kernal-ref      (atom nil)
+        kernel-ref      (atom nil)
         resize-listener (reify ChangeListener
                           (changed [_ _ _ _]
-                            (when-let [k @kernal-ref]
+                            (when-let [k @kernel-ref]
                               (request-render! k [(viewport/refreshed)]))))
 
-        kernal
+        kernel
         (map->DlCanvasKernalImpl
           {:main-canvas     main-canvas
            :overlay-canvas  overlay-canvas
@@ -187,7 +187,7 @@
            :resize-listener resize-listener
            :state-atom      (make-state)})]
 
-    (reset! kernal-ref kernal)
+    (reset! kernel-ref kernel)
 
     (.addListener (.widthProperty  container) resize-listener)
     (.addListener (.heightProperty container) resize-listener)
@@ -195,4 +195,4 @@
     (input/start! mouse-input)
 
     {:container container
-     :kernal    kernal}))
+     :kernel    kernel}))

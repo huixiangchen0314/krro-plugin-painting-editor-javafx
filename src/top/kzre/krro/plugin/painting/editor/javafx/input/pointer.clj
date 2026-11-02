@@ -1,10 +1,9 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.input.pointer
   "JavaFX 平台指针输入源（缓冲模式）：所有事件转换为标准事件并追加到原子缓冲区。"
-  (:require [top.kzre.krro.plugin.painting.core.input :as input]
-            [top.kzre.krro.plugin.painting.core.event :as event])
+  (:require [top.kzre.krro.plugin.painting.core.event :as event]
+            [top.kzre.krro.plugin.painting.editor.javafx.input.protocol :as input])
   (:import (javafx.event EventHandler)
-           (javafx.scene.canvas Canvas)
-           (javafx.scene.input MouseButton MouseEvent ScrollEvent)))
+           (javafx.scene.input MouseButton)))
 
 (defn- javafx-button->keyword
   [^MouseButton btn]
@@ -22,7 +21,7 @@
 
 
 (defrecord PointerBuffered [pressed?
-                            ^Canvas canvas
+                            fx-pane
                             on-event
                             current-button]
   input/IInputSource
@@ -67,25 +66,25 @@
                                                            :delta-x (.getDeltaX e) :delta-y (.getDeltaY e)
                                                            :mouse-button :middle
                                                            :modifiers (event->modifiers e))))))]
-      (.setOnMousePressed canvas on-press)
-      (.setOnMouseDragged canvas on-drag)
-      (.setOnMouseReleased canvas on-release)
-      (.setOnMouseMoved canvas on-move)
-      (.setOnScroll canvas on-scroll))
+      (.setOnMousePressed fx-pane on-press)
+      (.setOnMouseDragged fx-pane on-drag)
+      (.setOnMouseReleased fx-pane on-release)
+      (.setOnMouseMoved fx-pane on-move)
+      (.setOnScroll fx-pane on-scroll))
     nil)
 
   (stop! [_]
-    (.setOnMousePressed canvas nil)
-    (.setOnMouseDragged canvas nil)
-    (.setOnMouseReleased canvas nil)
-    (.setOnMouseMoved canvas nil)
-    (.setOnScroll canvas nil)
+    (.setOnMousePressed fx-pane nil)
+    (.setOnMouseDragged fx-pane nil)
+    (.setOnMouseReleased fx-pane nil)
+    (.setOnMouseMoved fx-pane nil)
+    (.setOnScroll fx-pane nil)
     (reset! pressed? false)
     (reset! current-button nil)))
 
 (defn make-pointer-input
   "创建缓冲式鼠标输入源。事件将追加到 on-event 原子中。"
-  [^Canvas canvas on-event]
-  (map->PointerBuffered {:canvas canvas :on-event on-event
+  [fx-pane on-event]
+  (map->PointerBuffered {:fx-pane fx-pane :on-event on-event
                          :pressed? (atom false)
                          :current-button (atom nil)}))

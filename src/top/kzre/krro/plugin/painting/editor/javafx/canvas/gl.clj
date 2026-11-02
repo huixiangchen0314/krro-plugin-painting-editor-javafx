@@ -33,10 +33,9 @@
                 (.tileSize (int tile-size))
                 (.atlasCapacity 3)
                 (.atlasFactory factory)
-                (.pixelFormat PixelFormat/RGBA8)
                 (.build)
                 (.join))))))))
 
 (defn glfx-composite-context-promise []
   (plet [flyweight (composite-flyweight-promise (GLRuntime/offscreen))]
-        (GLCompositeContext. flyweight 4)))
+        (GLCompositeContext. flyweight 4 PixelFormat/RGBA8)))

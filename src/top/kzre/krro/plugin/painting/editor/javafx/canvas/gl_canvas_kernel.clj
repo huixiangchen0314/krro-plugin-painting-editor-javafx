@@ -1,15 +1,15 @@
-(ns top.kzre.krro.plugin.painting.editor.javafx.canvas.gl-canvas-kernal
+(ns top.kzre.krro.plugin.painting.editor.javafx.canvas.gl-canvas-kernel
   (:require
     [taoensso.timbre :as log]
     [top.kzre.krro.core.util.channel :refer [<| >| chan close!]]
     [top.kzre.krro.core.util.promise :as promise :refer [plet>]]
     [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
-    [top.kzre.krro.plugin.painting.core.input :as input]
+    [top.kzre.krro.plugin.painting.editor.javafx.input.protocol :as input]
     [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
     [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
     [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
     [top.kzre.krro.plugin.painting.editor.javafx.canvas.gl :as gl]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol :refer [ICanvasKernal]]
+    [top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol :refer [ICanvasKernel]]
     [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer])
   (:import
     (com.huskerdev.grapl.gl GLContext GLProfile)
@@ -49,7 +49,7 @@
            scheduler
            render-task-id
            state-atom]
-    :as _kernal} changes]
+    :as _kernel} changes]
   (let [{:keys [layers current-layer-id
                 image-width image-height
                 viewport]}
@@ -116,7 +116,7 @@
    ;; 状态
    state-atom]
 
-  ICanvasKernal
+  ICanvasKernel
 
   (set-layers! [_ layers]
     (swap! state-atom assoc :layers layers))
@@ -159,7 +159,7 @@
             (try
               (step)
               (catch Throwable t
-                (log/error t "kernal close step failed")))))))))
+                (log/error t "kernel close step failed")))))))))
 
 ;; ═══════════════════════════════════════════════
 ;; GLCanvas 创建
@@ -202,13 +202,13 @@
 ;; 构造
 ;; ═══════════════════════════════════════════════
 
-(defn build-kernal
+(defn build-kernel
   [^GLRuntime gl-runtime
    {:keys [on-event]}]
   (let [{:keys [container gl-canvas overlay-canvas]}
         (build-layout gl-runtime)
 
-        render-task-id (str "gl-canvas-kernal-" (random-uuid))
+        render-task-id (str "gl-canvas-kernel-" (random-uuid))
         sync-blitter   (GLSyncTiledTextureBlitter/create pc/global-tile-size)
         mouse-input    (pointer/make-pointer-input container on-event)
 
@@ -219,7 +219,7 @@
 
         repaint-chan   (chan 1)
 
-        kernal
+        kernel
         (map->GLCanvasKernalImpl
           {:gl-canvas      gl-canvas
            :overlay-canvas overlay-canvas
@@ -245,9 +245,9 @@
       gl-canvas
       (reify Consumer
         (accept [_ _]
-          (request-render! kernal [(viewport/refreshed)]))))
+          (request-render! kernel [(viewport/refreshed)]))))
 
     (input/start! mouse-input)
 
     {:container container
-     :kernal    kernal}))
+     :kernel    kernel}))

@@ -1,6 +1,6 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol)
 
-(defprotocol ICanvasKernal
+(defprotocol ICanvasKernel
   (set-layers! [_ layers] "设置图层栈")
   (set-current-layer-id! [_ layer-id] "设置当前图层id")
   (set-image-size! [_ width height] "设置图像大小范围")

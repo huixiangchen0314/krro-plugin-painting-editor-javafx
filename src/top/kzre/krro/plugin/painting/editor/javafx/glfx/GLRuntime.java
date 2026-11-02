@@ -82,27 +82,43 @@ public final class GLRuntime implements AutoCloseable {
 
     /**
      * 获取或惰性创建 GL 线程绑定资源。
-     *
+     * 默认GL 线程下初始化
      * @param key     资源标识（通常用资源 Class）
      * @param factory 创建函数——在 GL 线程执行，GL 上下文已 current
      * @return 解析为资源的 future；同一 key 并发调用只创建一次
      */
-    @SuppressWarnings("unchecked")
     public <T> CompletableFuture<T> computeIfAbsent(Object key, Callable<T> factory) {
+       return computeIfAbsent(key,factory, true);
+    }
+
+    /**
+     * 获取或创建资源，同步执行时候错误立即抛出
+     */
+    @SuppressWarnings("unchecked")
+    public <T> CompletableFuture<T> computeIfAbsent(Object key, Callable<T> factory, boolean onGlThread) {
         if (key == null) throw new NullPointerException("key must not be null");
         if (factory == null) throw new NullPointerException("factory must not be null");
         if (closed.get()) throw new IllegalStateException("GLRuntime is closed");
 
         Object cached = resources.get(key);
         if (cached != null) return CompletableFuture.completedFuture((T) cached);
-
-        return ExecutorUtils.runOnThread(executor, () -> {
+        Callable<T> cb =  () -> {
             Object hit = resources.get(key);
             if (hit != null) return (T) hit;
             T created = factory.call();
             resources.put(key, created);
             return created;
-        });
+        };
+        if (onGlThread) {
+            return ExecutorUtils.runOnThread(executor,cb);
+        }else {
+            try {
+                return CompletableFuture.completedFuture(cb.call());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
     }
 
     // ── 关闭 hook ──────────────────────────────────
