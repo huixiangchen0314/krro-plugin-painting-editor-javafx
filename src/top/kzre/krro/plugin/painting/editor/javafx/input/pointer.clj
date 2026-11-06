@@ -1,9 +1,11 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.input.pointer
   "JavaFX 平台指针输入源（缓冲模式）：所有事件转换为标准事件并追加到原子缓冲区。"
-  (:require [top.kzre.krro.plugin.painting.core.event :as event]
-            [top.kzre.krro.plugin.painting.editor.javafx.input.protocol :as input])
-  (:import (javafx.event EventHandler)
-           (javafx.scene.input MouseButton)))
+  (:require
+   [top.kzre.krro.plugin.painting.core.event :as event]
+   [top.kzre.krro.plugin.painting.editor.javafx.input.protocol :as input])
+  (:import
+   (javafx.event EventHandler)
+   (javafx.scene.input MouseButton MouseEvent ScrollEvent)))
 
 (defn- javafx-button->keyword
   [^MouseButton btn]
@@ -28,44 +30,44 @@
     (let [on-press (reify EventHandler
                      (handle [_ e]
                        (reset! pressed? true)
-                       (let [btn (javafx-button->keyword (.getButton e))]
+                       (let [btn (javafx-button->keyword (.getButton  ^MouseEvent e))]
                          (reset! current-button btn)
                          (on-event
-                           (event/make-pointer-event :press (.getX e) (.getY e)
+                           (event/make-pointer-event :press (.getX  ^MouseEvent e) (.getY  ^MouseEvent e)
                                                      :mouse-button btn
                                                      :modifiers (event->modifiers e))))))
           on-drag  (reify EventHandler
                      (handle [_ e]
                        (when @pressed?
                          (on-event
-                           (event/make-pointer-event :drag (.getX e) (.getY e)
+                           (event/make-pointer-event :drag (.getX  ^MouseEvent e) (.getY  ^MouseEvent e)
                                                      :mouse-button @current-button
                                                      :modifiers (event->modifiers e))))))
           on-move  (reify EventHandler
                      (handle [_ e]
                        (on-event
-                         (event/make-pointer-event :move (.getX e) (.getY e)
+                         (event/make-pointer-event :move (.getX  ^MouseEvent e) (.getY  ^MouseEvent e)
                                                    :modifiers (event->modifiers e)))))
           on-release (reify EventHandler
                        (handle [_ e]
                          (when @pressed?
-                           (let [btn (javafx-button->keyword (.getButton e))]
+                           (let [btn (javafx-button->keyword (.getButton ^MouseEvent e))]
                              (on-event
-                               (event/make-pointer-event :release (.getX e) (.getY e)
+                               (event/make-pointer-event :release (.getX ^MouseEvent e) (.getY ^MouseEvent e)
                                                          :mouse-button btn
                                                          :modifiers (event->modifiers e)))
                              (reset! pressed? false)
                              (reset! current-button nil)))))
           on-scroll (reify EventHandler
                       (handle [_ e]
-                        (when-not (.isDirect e)
+                        (when-not (.isDirect ^ScrollEvent e)
                           ;; scroll 不是按钮事件，不传 :mouse-button。
                           ;; 构造器对 :scroll 不写 :mouse-button，dispatch 按 type 优先处理。
                           (on-event
-                            (event/make-pointer-event :scroll (.getX e) (.getY e)
+                            (event/make-pointer-event :scroll (.getX ^ScrollEvent e) (.getY ^ScrollEvent  e)
                                                       ;; javafx 每格发送一次滚轮事件，我们取单格为数值1，保留符号
-                                                      :delta-x (Math/signum ^double (.getDeltaX e))
-                                                      :delta-y (Math/signum ^double (.getDeltaY e))
+                                                      :delta-x (Math/signum ^double (.getDeltaX ^ScrollEvent  e))
+                                                      :delta-y (Math/signum ^double (.getDeltaY ^ScrollEvent  e))
                                                       :modifiers (event->modifiers e))))))]
       (.setOnMousePressed fx-pane on-press)
       (.setOnMouseDragged fx-pane on-drag)

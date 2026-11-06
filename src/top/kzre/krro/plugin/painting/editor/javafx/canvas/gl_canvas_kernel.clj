@@ -1,29 +1,29 @@
 (ns top.kzre.krro.plugin.painting.editor.javafx.canvas.gl-canvas-kernel
   (:require
-    [taoensso.timbre :as log]
-    [top.kzre.krro.core.util.channel :refer [<| >| chan close!]]
-    [top.kzre.krro.core.util.promise :as promise :refer [plet>]]
-    [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
-    [top.kzre.krro.plugin.painting.editor.javafx.input.protocol :as input]
-    [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
-    [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
-    [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.gl :as gl]
-    [top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol :refer [ICanvasKernel]]
-    [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer])
+   [taoensso.timbre :as log]
+   [top.kzre.krro.core.util.channel :refer [<| >| chan close!]]
+   [top.kzre.krro.core.util.promise :as promise :refer [plet>]]
+   [top.kzre.krro.plugin.painting.core.changes.viewport :as viewport]
+   [top.kzre.krro.plugin.painting.core.project.canvas :as pc]
+   [top.kzre.krro.plugin.painting.core.schedule.executor :as executor]
+   [top.kzre.krro.plugin.painting.core.schedule.scheduler-impl :as scheduler-impl]
+   [top.kzre.krro.plugin.painting.editor.javafx.canvas.gl :as gl]
+   [top.kzre.krro.plugin.painting.editor.javafx.canvas.protocol :refer [ICanvasKernel]]
+   [top.kzre.krro.plugin.painting.editor.javafx.input.pointer :as pointer]
+   [top.kzre.krro.plugin.painting.editor.javafx.input.protocol :as input])
   (:import
-    (com.huskerdev.grapl.gl GLContext GLProfile)
-    (com.huskerdev.openglfx.canvas GLCanvas GLCanvas$Builder GLCanvas$Builder$ContextDescription$New)
-    (com.huskerdev.openglfx.canvas.events GLRenderEvent)
-    (com.huskerdev.openglfx.lwjgl LWJGLExecutor)
-    (java.lang AutoCloseable)
-    (java.util.concurrent Callable)
-    (java.util.function Consumer)
-    (javafx.application Platform)
-    (javafx.scene.canvas Canvas)
-    (javafx.scene.layout StackPane)
-    (top.kzre.krro.core.util SerialExecutor)
-    (top.kzre.krro.plugin.painting.editor.javafx.glfx GLRuntime GLSyncTiledTextureBlitter)))
+   (com.huskerdev.grapl.gl GLContext GLProfile)
+   (com.huskerdev.openglfx.canvas GLCanvas GLCanvas$Builder GLCanvas$Builder$ContextDescription$New)
+   (com.huskerdev.openglfx.canvas.events GLRenderEvent)
+   (com.huskerdev.openglfx.lwjgl LWJGLExecutor)
+   (java.lang AutoCloseable)
+   (java.util.concurrent Callable)
+   (java.util.function Consumer)
+   (javafx.application Platform)
+   (javafx.scene.canvas Canvas)
+   (javafx.scene.layout StackPane)
+   (top.kzre.krro.core.util SerialExecutor)
+   (top.kzre.krro.plugin.painting.editor.javafx.glfx GLRuntime GLSyncTiledTextureBlitter)))
 
 ;; ═══════════════════════════════════════════════
 ;; 状态
